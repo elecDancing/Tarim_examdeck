@@ -1,5 +1,5 @@
 #define MyAppName "塔里木刷题王"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "1.0.17"
 #define MyAppPublisher "Tarim Examdeck"
 #define MyAppExeName "塔里木刷题王.exe"
 

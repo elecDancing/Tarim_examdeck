@@ -1785,6 +1785,33 @@ export function getFavoritePracticeKey(deckId: string) {
   return `favorites:${deckId}`;
 }
 
+export function getMistakePracticeKey(deckId: string) {
+  return `mistakes:${deckId}`;
+}
+
+export function buildMistakePractice(deckId: string, questions: Question[], shuffleOptions: boolean, autoAdvanceCorrect: boolean, nowIso = new Date().toISOString()): PracticeState {
+  return {
+    deckId,
+    scope: "mistakes",
+    questionIds: questions.map((question) => question.id),
+    currentIndex: 0,
+    mode: "answer",
+    optionOrders: buildPracticeOptionOrders(questions, shuffleOptions),
+    shuffleOptions,
+    shuffleQuestions: false,
+    autoAdvanceCorrect,
+    answers: {},
+    results: {},
+    startedAt: nowIso,
+    updatedAt: nowIso
+  };
+}
+
+export function getPracticeWrongQuestionIds(practice: PracticeState) {
+  const results = practice.results ?? {};
+  return practice.questionIds.filter((questionId) => results[questionId] === false);
+}
+
 export function reconcileFavoritePractice(practice: PracticeState, questions: Question[]): PracticeState {
   const currentIds = new Set(questions.map((question) => question.id));
   const retainedIds = practice.questionIds.filter((questionId) => currentIds.has(questionId));

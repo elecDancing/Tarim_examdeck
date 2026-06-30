@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import { CopyrightDialog } from "./components/CopyrightDialog";
+import { DailyReviewFinishDialog } from "./components/DailyReviewFinishDialog";
+import { MistakePracticeFinishDialog } from "./components/MistakePracticeFinishDialog";
 import { AnswerProgressDismissLayer, isAnswerProgressBlankTap, MobileNavDismissLayer } from "./components/AndroidInteractionLayers";
 import { AnswerNavToggle, AnswerProgressToggle, RecentSessions, ResultSummary } from "./components/AnswerNavigation";
 import { AndroidQuestionSwipeStage } from "./components/AndroidQuestionSwipeStage";
@@ -184,6 +186,9 @@ import {
   buildDailyReviewSessionItems,
   buildQuestionOptionOrder,
   getFavoritePracticeKey,
+  getMistakePracticeKey,
+  buildMistakePractice,
+  getPracticeWrongQuestionIds,
   reconcileFavoritePractice,
   buildPracticeQuestionIds,
   buildInterleavedPracticeQuestionIds,
@@ -197,8 +202,7 @@ import {
   getPracticeReviewProgress,
   getPracticePendingIndices,
   getPracticeUnansweredIndices,
-  formatQuestionIndexList,
-  buildMistakeConfig
+  formatQuestionIndexList
 } from "./lib/appRules";
 import type { DailyReviewSummary, ReviewForecastDay } from "./lib/appRules";
 
@@ -394,6 +398,7 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [brandAnimationKey, setBrandAnimationKey] = useState(0);
   const [dailyReviewFinishDialogOpen, setDailyReviewFinishDialogOpen] = useState(false);
+  const [mistakePracticeFinishDialogOpen, setMistakePracticeFinishDialogOpen] = useState(false);
   const [answerProgressCollapsed, setAnswerProgressCollapsed] = useState(() => globalThis.matchMedia?.("(max-width: 640px)").matches ?? false);
   const [slashAnimation, setSlashAnimation] = useState<SlashAnimationState | null>(null);
   const [hardQuestionAnimation, setHardQuestionAnimation] = useState<HardQuestionAnimationState | null>(null);
@@ -731,6 +736,7 @@ function App() {
   const currentPracticeStorageKey = activePracticeStorageKey ?? activeDeck?.id ?? null;
   const activePractice = currentPracticeStorageKey ? data.practices[currentPracticeStorageKey] : undefined;
   const favoritePractice = activeDeck ? data.practices[getFavoritePracticeKey(activeDeck.id)] : undefined;
+  const mistakePractice = activeDeck ? data.practices[getMistakePracticeKey(activeDeck.id)] : undefined;
   const isAnsweringView =
     (view === "practice" && Boolean(activePractice && !activePractice.submittedAt)) ||
     (view === "exam" && Boolean(activeSession && !activeSession.submittedAt)) ||
@@ -957,7 +963,7 @@ function App() {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
 
       const practiceIndex = getPracticeActiveIndex(activePractice);
-      const isReviewMode = getPracticeMode(activePractice) === "review";
+      const isReviewMode = activePractice.scope !== "mistakes" && getPracticeMode(activePractice) === "review";
       const questionId = activePractice.questionIds[practiceIndex];
       const question = questionById.get(questionId);
       if (!question) return;
@@ -1077,15 +1083,28 @@ function App() {
     setStatus(`已生成 ${items.length} 道${statusLabel}`);
   }
 
-  function startMistakeExam() {
+  function startMistakePractice(questionIds?: string[]) {
     const snapshot = dataRef.current;
     const targetDeck = activeDeckId ? snapshot.decks.find((deck) => deck.id === activeDeckId) ?? null : null;
     if (!targetDeck) { setStatus("请先选择一个题库"); setView("home"); return; }
-    const questions = getDeckQuestions(snapshot.questions, targetDeck)
-      .filter((question) => isActiveMistake(snapshot.stats[question.id]))
-      .sort((a, b) => (snapshot.stats[b.id]?.wrong ?? 0) - (snapshot.stats[a.id]?.wrong ?? 0));
-    const nextConfig = buildMistakeConfig(questions, mistakeShuffleOptions);
-    startExam(nextConfig, questions, snapshot.stats, targetDeck, "错题");
+    const deckQuestions = getDeckQuestions(snapshot.questions, targetDeck);
+    const byId = new Map(deckQuestions.map((question) => [question.id, question]));
+    const questions = (questionIds
+      ? questionIds.map((questionId) => byId.get(questionId)).filter((question): question is Question => Boolean(question))
+      : deckQuestions.filter((question) => isActiveMistake(snapshot.stats[question.id])).sort((a, b) => (snapshot.stats[b.id]?.wrong ?? 0) - (snapshot.stats[a.id]?.wrong ?? 0)));
+    if (questions.length === 0) { setStatus("当前题库暂无错题"); return; }
+    const storageKey = getMistakePracticeKey(targetDeck.id);
+    clearAutoAdvanceTimers();
+    setActiveDeckId(targetDeck.id);
+    setActivePracticeStorageKey(storageKey);
+    setPracticeShuffleOptions(mistakeShuffleOptions);
+    setPracticeShuffleQuestions(false);
+    setPracticeAutoAdvanceCorrect(true);
+    setMistakePracticeFinishDialogOpen(false);
+    const practice = buildMistakePractice(targetDeck.id, questions, mistakeShuffleOptions, true);
+    setData((previous) => ({ ...previous, practices: { ...previous.practices, [storageKey]: practice } }));
+    setView("practice");
+    setStatus(`${questionIds ? "已继续" : "已开始"}错题刷题，共 ${questions.length} 道`);
   }
 
   function startQuickExam(deckId: string) {
@@ -2355,7 +2374,7 @@ function App() {
       setData((previous) => {
         const practice = previous.practices[storageKey];
         const deck = previous.decks.find((deck) => deck.id === practice?.deckId) ?? null;
-        if (!practice || practice.submittedAt || (!isHardQuestionDeck(deck) && getPracticeMode(practice) === "review")) return previous;
+        if (!practice || practice.submittedAt || (practice.scope !== "mistakes" && !isHardQuestionDeck(deck) && getPracticeMode(practice) === "review")) return previous;
         if (practice.questionIds[practice.currentIndex] !== questionId) return previous;
         const boundedIndex = Math.max(0, Math.min(practice.questionIds.length - 1, nextIndex));
         return {
@@ -2380,7 +2399,7 @@ function App() {
       const practice = previous.practices[currentPracticeStorageKey];
       if (!practice || practice.questionIds.length === 0) return previous;
       const boundedIndex = Math.max(0, Math.min(practice.questionIds.length - 1, index));
-      const mode = isHardQuestionDeck(activeDeck) ? "answer" : getPracticeMode(practice);
+      const mode = isHardQuestionDeck(activeDeck) || practice.scope === "mistakes" ? "answer" : getPracticeMode(practice);
       return {
         ...previous,
         practices: {
@@ -2400,6 +2419,7 @@ function App() {
     setData((previous) => {
       const practice = previous.practices[currentPracticeStorageKey];
       if (!practice || practice.submittedAt) return previous;
+      if (practice.scope === "mistakes") return previous;
       if (getPracticeMode(practice) === mode) return previous;
       const nextPractice: PracticeState = {
         ...practice,
@@ -2421,7 +2441,7 @@ function App() {
 
   function togglePracticeOption(key: string) {
     if (!activeDeck || !activePractice || !currentPracticeStorageKey || activePractice.submittedAt) return;
-    if (!isHardQuestionDeck(activeDeck) && getPracticeMode(activePractice) === "review") return;
+    if (activePractice.scope !== "mistakes" && !isHardQuestionDeck(activeDeck) && getPracticeMode(activePractice) === "review") return;
     const questionId = activePractice.questionIds[activePractice.currentIndex];
     const question = questionById.get(questionId);
     const results = activePractice.results ?? {};
@@ -2493,7 +2513,7 @@ function App() {
 
   function confirmPracticeQuestion() {
     if (!activeDeck || !activePractice || !currentPracticeStorageKey || activePractice.submittedAt) return;
-    if (!isHardQuestionDeck(activeDeck) && getPracticeMode(activePractice) === "review") return;
+    if (activePractice.scope !== "mistakes" && !isHardQuestionDeck(activeDeck) && getPracticeMode(activePractice) === "review") return;
     const questionId = activePractice.questionIds[activePractice.currentIndex];
     const question = questionById.get(questionId);
     const selectedKeys = activePractice.answers[questionId] ?? [];
@@ -2577,8 +2597,27 @@ function App() {
         }
       }
     }));
-    setStatus(`${activePractice.scope === "favorites" ? "收藏刷题" : "顺序刷题"}交卷完成：${score}%${pendingIndices.length > 0 ? `；未完成 ${pendingIndices.length} 道：第 ${formatQuestionIndexList(pendingIndices)} 题` : ""}`);
-    if (document.documentElement.classList.contains("native-android")) void import("./lib/androidSubmitSummary").then(({ showAndroidSubmitSummary }) => showAndroidSubmitSummary({ title: activePractice.scope === "favorites" ? "收藏刷题完成" : "顺序刷题完成", score, correct, total, pending: pendingIndices.length, detail: "本次刷题进度已保存。", onReturn: () => { setAnswerProgressCollapsed(true); setView(activeDeck ? "dashboard" : "home"); } }));
+    const practiceLabel = activePractice.scope === "favorites" ? "收藏刷题" : activePractice.scope === "mistakes" ? "错题刷题" : "顺序刷题";
+    setStatus(`${practiceLabel}交卷完成：${score}%${pendingIndices.length > 0 ? `；未完成 ${pendingIndices.length} 道：第 ${formatQuestionIndexList(pendingIndices)} 题` : ""}`);
+    if (activePractice.scope === "mistakes") {
+      setMistakePracticeFinishDialogOpen(true);
+      return;
+    }
+    if (document.documentElement.classList.contains("native-android")) void import("./lib/androidSubmitSummary").then(({ showAndroidSubmitSummary }) => showAndroidSubmitSummary({ title: `${practiceLabel}完成`, score, correct, total, pending: pendingIndices.length, detail: "本次刷题进度已保存。", onReturn: () => { setAnswerProgressCollapsed(true); setView(activeDeck ? "dashboard" : "home"); } }));
+  }
+
+  function continueMistakePracticeFromWrong() {
+    const questionIds = activePractice?.scope === "mistakes" ? getPracticeWrongQuestionIds(activePractice) : [];
+    if (questionIds.length === 0) { setStatus("本轮没有需要继续刷的错题"); return; }
+    startMistakePractice(questionIds);
+  }
+
+  function exitMistakePractice() {
+    setMistakePracticeFinishDialogOpen(false);
+    setActivePracticeStorageKey(activeDeck?.id ?? activeDeckId);
+    setAnswerProgressCollapsed(true);
+    setView("mistakes");
+    setStatus("已退出错题刷题");
   }
 
   function renderMain() {
@@ -2731,6 +2770,7 @@ function App() {
           stats={data.stats}
           questionById={questionById}
           startPractice={startPractice}
+          restartMistakePractice={() => startMistakePractice()}
           practiceShuffleOptions={practiceShuffleOptions}
           setPracticeShuffleOptions={updatePracticeShuffleOptions}
           practiceShuffleQuestions={practiceShuffleQuestions}
@@ -2820,7 +2860,7 @@ function App() {
           editQuestion={setEditingQuestionId}
           mistakeShuffleOptions={mistakeShuffleOptions}
           setMistakeShuffleOptions={setMistakeShuffleOptions}
-          startMistakeExam={startMistakeExam}
+          startMistakePractice={() => startMistakePractice()}
         />
       );
     }
@@ -2962,6 +3002,14 @@ function App() {
           onClose={() => setDailyReviewFinishDialogOpen(false)}
         />
       )}
+      {mistakePracticeFinishDialogOpen && mistakePractice?.scope === "mistakes" && (
+        <MistakePracticeFinishDialog
+          practice={mistakePractice}
+          onContinueWrong={continueMistakePracticeFromWrong}
+          onExit={exitMistakePractice}
+          onClose={() => setMistakePracticeFinishDialogOpen(false)}
+        />
+      )}
       {deckActionDialog && deckActionDeck && (
         <DeckActionConfirmDialog
           action={deckActionDialog.kind}
@@ -3067,74 +3115,6 @@ function DeckActionConfirmDialog({
           <button className={isDelete ? "danger-button" : "primary-button"} type="button" onClick={onConfirm}>
             {actionIcon}
             {actionLabel}
-          </button>
-        </div>
-      </article>
-    </div>
-  );
-}
-
-function DailyReviewFinishDialog({
-  session,
-  slashedQuestionSet,
-  onFinish,
-  onRequeueMistakes,
-  onClose
-}: {
-  session: DailyReviewSession;
-  slashedQuestionSet: Set<string>;
-  onFinish: () => void;
-  onRequeueMistakes: () => void;
-  onClose: () => void;
-}) {
-  const finishedCount = session.items.filter((item) => item.isCorrect !== undefined).length;
-  const wrongItems = session.items.filter((item) => item.isCorrect === false);
-  const wrongCount = wrongItems.length;
-  const requeueableWrongCount = wrongItems.filter((item) => !slashedQuestionSet.has(item.questionId)).length;
-  const slashedWrongCount = wrongCount - requeueableWrongCount;
-  const correctCount = session.items.filter((item) => item.isCorrect === true).length;
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="modal-backdrop review-finish-backdrop" onMouseDown={onClose}>
-      <article className="daily-review-finish-dialog" role="dialog" aria-modal="true" aria-label="完成每日复习" onMouseDown={(event) => event.stopPropagation()}>
-        <header className="daily-review-finish-header">
-          <span className="daily-review-finish-icon">
-            <CalendarCheck size={24} strokeWidth={2.4} />
-          </span>
-          <div>
-            <span className="eyebrow">每日复习</span>
-            <h2>这轮复习怎么处理？</h2>
-          </div>
-          <button className="icon-button" type="button" aria-label="关闭" onClick={onClose}>
-            <XCircle size={20} />
-          </button>
-        </header>
-        <div className="daily-review-finish-stats">
-          <span><strong>{finishedCount}</strong> 已判定</span>
-          <span><strong>{correctCount}</strong> 正确</span>
-          <span className={wrongCount > 0 ? "has-wrong" : ""}><strong>{wrongCount}</strong> 错题</span>
-        </div>
-        <p className="daily-review-finish-copy">
-          可以直接完成今天的复习；也可以把本轮错题重新配置成新的今日复习队列，再刷一遍。已斩错题会自动跳过。
-          {slashedWrongCount > 0 ? ` 本轮有 ${slashedWrongCount} 道错题已斩题。` : ""}
-        </p>
-        <div className="daily-review-finish-actions">
-          <button className="secondary-button daily-review-requeue-button" type="button" onClick={onRequeueMistakes} disabled={requeueableWrongCount === 0}>
-            <AlertTriangle size={18} />
-            错题重新进入今日复习
-          </button>
-          <button className="primary-button" type="button" onClick={onFinish}>
-            <CheckCircle2 size={18} />
-            完成复习
           </button>
         </div>
       </article>
@@ -4549,6 +4529,7 @@ function PracticeView({
   stats,
   questionById,
   startPractice,
+  restartMistakePractice,
   practiceShuffleOptions,
   setPracticeShuffleOptions,
   practiceShuffleQuestions,
@@ -4582,6 +4563,7 @@ function PracticeView({
   stats: Record<string, QuestionStat>;
   questionById: Map<string, Question>;
   startPractice: (reset?: boolean, shuffleOptions?: boolean, shuffleQuestions?: boolean) => void;
+  restartMistakePractice: () => void;
   practiceShuffleOptions: boolean;
   setPracticeShuffleOptions: (value: boolean) => void;
   practiceShuffleQuestions: boolean;
@@ -4620,6 +4602,8 @@ function PracticeView({
 
   const isHardDeck = isHardQuestionDeck(deck);
   const isFavoritePractice = practice?.scope === "favorites";
+  const isMistakePractice = practice?.scope === "mistakes";
+  const practiceTitle = isFavoritePractice ? "收藏刷题" : isMistakePractice ? "错题刷题" : "顺序刷题";
 
   if (!practice) {
     return (
@@ -4665,15 +4649,15 @@ function PracticeView({
   if (practice.questionIds.length === 0) {
     return (
       <section className="page">
-        <Header title="收藏刷题" subtitle={deck.name} />
+        <Header title={practiceTitle} subtitle={deck.name} />
         <section className="setup-panel">
-          <p className="panel-copy">本题库已没有收藏题，收藏刷题进度已同步清空。</p>
+          <p className="panel-copy">本题库已没有可继续刷的题，{practiceTitle}进度已同步清空。</p>
         </section>
       </section>
     );
   }
 
-  const mode = isHardDeck ? "answer" : getPracticeMode(practice);
+  const mode = isHardDeck || isMistakePractice ? "answer" : getPracticeMode(practice);
   const isReviewMode = mode === "review";
   const currentIndex = getPracticeActiveIndex(practice);
   const questionId = practice.questionIds[currentIndex];
@@ -4681,10 +4665,10 @@ function PracticeView({
   if (!question) {
     return (
       <section className="page">
-        <Header title={isFavoritePractice ? "收藏刷题" : "顺序刷题"} subtitle={deck.name} />
+        <Header title={practiceTitle} subtitle={deck.name} />
         <section className="setup-panel">
-          <p className="panel-copy">题库已更新，请重新开始{isFavoritePractice ? "收藏刷题" : "顺序刷题"}。</p>
-          {!isHardDeck && (
+          <p className="panel-copy">题库已更新，请重新开始{practiceTitle}。</p>
+          {!isHardDeck && !isMistakePractice && (
             <>
               <label className="compact-check">
                 <input type="checkbox" checked={practiceShuffleOptions} onChange={(event) => setPracticeShuffleOptions(event.target.checked)} />
@@ -4696,7 +4680,7 @@ function PracticeView({
               </label>
             </>
           )}
-          <button className="primary-button" onClick={() => startPractice(true, isHardDeck ? false : practiceShuffleOptions, isHardDeck ? false : practiceShuffleQuestions)}>重新开始</button>
+          <button className="primary-button" onClick={() => isMistakePractice ? restartMistakePractice() : startPractice(true, isHardDeck ? false : practiceShuffleOptions, isHardDeck ? false : practiceShuffleQuestions)}>重新开始</button>
         </section>
       </section>
     );
@@ -4743,11 +4727,11 @@ function PracticeView({
         <div className="exam-topbar">
           <div>
             <span className="eyebrow">{deck.name} · {question.uid}</span>
-            <h1>{isFavoritePractice ? (isReviewMode ? "收藏背题" : "收藏刷题") : (isReviewMode ? "顺序背题" : "顺序刷题")}</h1>
+            <h1>{isMistakePractice ? "错题刷题" : isFavoritePractice ? (isReviewMode ? "收藏背题" : "收藏刷题") : (isReviewMode ? "顺序背题" : "顺序刷题")}</h1>
             <ProficiencyBadge level={proficiency} />
           </div>
           <div className="exam-meta">
-            {!isHardDeck && <PracticeModeSwitch mode={mode} setMode={setPracticeMode} />}
+            {!isHardDeck && !isMistakePractice && <PracticeModeSwitch mode={mode} setMode={setPracticeMode} />}
             <span className="question-index-pill">{currentIndex + 1} / {practice.questionIds.length}</span>
             <AnswerProgressToggle collapsed={progressCollapsed} setCollapsed={setProgressCollapsed} />
           </div>
@@ -4828,14 +4812,14 @@ function PracticeView({
         <aside className="question-nav" onClickCapture={(event) => { if (isAnswerProgressBlankTap(event)) setProgressCollapsed(true); }}>
           <section className={`result-panel practice-progress-panel${submitted ? " submitted" : ""}${isFavoritePractice ? " favorite" : ""}`}>
             <div className="practice-progress-head">
-              <h2>{submitted ? `成绩 ${practice.score}%` : isFavoritePractice ? "收藏进度" : "顺序进度"}</h2>
+              <h2>{submitted ? `成绩 ${practice.score}%` : isFavoritePractice ? "收藏进度" : isMistakePractice ? "错题进度" : "顺序进度"}</h2>
               {!submitted && <span>{finalizedCount} 已判定</span>}
             </div>
             <div className="practice-progress-metric" aria-label={`已作答 ${answeredCount} / ${practice.questionIds.length}`}>
               <strong>{answeredCount}</strong>
               <span>/ {practice.questionIds.length} 已作答</span>
             </div>
-            {!isFavoritePractice && slashedAnsweredCount > 0 && (
+            {!isFavoritePractice && !isMistakePractice && slashedAnsweredCount > 0 && (
               <p className="practice-count-note">“已作答”含 {slashedAnsweredCount} 道已斩题。</p>
             )}
             {isHardDeck && (
@@ -4848,7 +4832,7 @@ function PracticeView({
                 {unconfirmedIndices.length > 0 && <span>已选未确认：第 {formatQuestionIndexList(unconfirmedIndices)} 题</span>}
               </div>
             )}
-            {!submitted && !isHardDeck && (
+            {!submitted && !isHardDeck && !isMistakePractice && (
               <div className="practice-progress-options">
                 <label className="compact-check">
                   <input type="checkbox" checked={practiceShuffleOptions} onChange={(event) => setPracticeShuffleOptions(event.target.checked)} />
@@ -4869,7 +4853,7 @@ function PracticeView({
               </div>
             )}
             {!submitted && (
-              <button className="secondary-button wide" onClick={() => startPractice(true, isHardDeck ? false : practiceShuffleOptions, isHardDeck ? false : practiceShuffleQuestions)}>重新开始</button>
+              <button className="secondary-button wide" onClick={() => isMistakePractice ? restartMistakePractice() : startPractice(true, isHardDeck ? false : practiceShuffleOptions, isHardDeck ? false : practiceShuffleQuestions)}>重新开始</button>
             )}
           </section>
           <ScrollableQuestionNav
@@ -5022,7 +5006,7 @@ function Mistakes({
   editQuestion,
   mistakeShuffleOptions,
   setMistakeShuffleOptions,
-  startMistakeExam
+  startMistakePractice
 }: {
   questions: Question[];
   stats: AppData["stats"];
@@ -5031,22 +5015,22 @@ function Mistakes({
   editQuestion: (questionId: string) => void;
   mistakeShuffleOptions: boolean;
   setMistakeShuffleOptions: (value: boolean) => void;
-  startMistakeExam: () => void;
+  startMistakePractice: () => void;
 }) {
   return (
     <section className="page">
       <Header title="错题" subtitle={`${questions.length} 道`} />
       <FeatureGuide title="错题如何清除">
-        题目只要答错过就会进入错题库；之后连续答对 {MISTAKE_CLEAR_CORRECT_STREAK} 次会自动移出。生成错题卷会包含点击时当前题库的全部错题，不会清空原有答题记录。
+        题目只要答错过就会进入错题库；之后连续答对 {MISTAKE_CLEAR_CORRECT_STREAK} 次会自动移出。错题刷题会包含点击时当前题库的全部错题，答题后即时保存记录。
       </FeatureGuide>
       <div className="toolbar">
         <label className="compact-check">
           <input type="checkbox" checked={mistakeShuffleOptions} onChange={(event) => setMistakeShuffleOptions(event.target.checked)} />
           选项乱序
         </label>
-        <button className="primary-button" onClick={startMistakeExam} disabled={questions.length === 0}>
+        <button className="primary-button" onClick={startMistakePractice} disabled={questions.length === 0}>
           <RotateCcw size={18} />
-          生成错题卷
+          开始错题刷题
         </button>
       </div>
       <div className="question-list">

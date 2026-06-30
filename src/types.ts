@@ -113,7 +113,7 @@ export type PracticeMode = "answer" | "review";
 
 export type PracticeState = {
   deckId: string;
-  scope?: "deck" | "favorites";
+  scope?: "deck" | "favorites" | "mistakes";
   questionIds: string[];
   currentIndex: number;
   reviewIndex?: number;

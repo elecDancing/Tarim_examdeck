@@ -2,7 +2,7 @@ Unicode true
 !include "MUI2.nsh"
 
 !define APP_NAME "塔里木刷题王"
-!define APP_VERSION "0.1.0"
+!define APP_VERSION "1.0.17"
 !define APP_PUBLISHER "Tarim Examdeck"
 !define APP_EXE "塔里木刷题王.exe"
 !define APP_DIR "TarimExamdeck"

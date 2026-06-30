@@ -14,7 +14,8 @@ KEYSTORE_DIR="$ROOT_DIR/android/keystores"
 KEYSTORE_PATH="$KEYSTORE_DIR/tarim-android-release.jks"
 KEY_ALIAS="tarim-release"
 KEYSTORE_PASSWORD="${TARIM_ANDROID_KEYSTORE_PASSWORD:-tarim-android-release-2026}"
-APK_NAME="塔里木刷题王-android.apk"
+APP_VERSION="$(node -p "require('./package.json').version")"
+APK_NAME="塔里木刷题王-android-v${APP_VERSION}.apk"
 
 mkdir -p "$RELEASE_DIR"
 
@@ -54,6 +55,7 @@ echo "==> Assembling signed Android release APK"
     -Pandroid.injected.signing.key.password="$KEYSTORE_PASSWORD"
 )
 
+rm -f "$RELEASE_DIR/塔里木刷题王-android.apk"
 cp "$ROOT_DIR/android/app/build/outputs/apk/release/app-release.apk" "$RELEASE_DIR/$APK_NAME"
 
 echo "==> Generated $RELEASE_DIR/$APK_NAME"

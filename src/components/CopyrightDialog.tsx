@@ -59,6 +59,17 @@ export function CopyrightDialog({ onClose, backShortcutLabel, shortcutModifierLa
                 <p>如需在多台设备之间同步，可在“设置”中导出学习进度，再到其他设备导入。</p>
                 <p>由于个人精力有限，部分题目可能存在漏项、公式不全等问题，欢迎通过微信或邮箱反馈修正。</p>
               </section>
+              {isAndroid && (
+                <section>
+                  <h3>手机快捷操作</h3>
+                  <div className="shortcut-list">
+                    <span><strong>左滑 / 右滑</strong>切换下一题 / 上一题</span>
+                    <span><strong>点按左侧 / 右侧空白</strong>快速切换上一题 / 下一题</span>
+                    <span><strong>双击笔记</strong>编辑或添加笔记，避免滑动时误触</span>
+                    <span><strong>右上题卡</strong>打开题号导航，点选题号后自动回到答题</span>
+                  </div>
+                </section>
+              )}
             </div>
             <div className="copyright-stack">
               <section className="copyright-contact-card">

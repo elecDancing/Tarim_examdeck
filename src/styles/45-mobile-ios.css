@@ -766,24 +766,21 @@
     transform: none;
   }
 
-  .native-android .android-question-swipe-stage { position: relative; display: block; --android-swipe-x: 0px; --android-swipe-preview-opacity: 0; --android-swipe-preview-blur: 14px; --android-swipe-preview-scale: 0.94; --android-swipe-preview-y: 24px; overflow: visible; }
+  .native-android .android-question-swipe-stage { position: relative; display: block; --android-swipe-x: 0px; --android-swipe-enter-x: 100vw; overflow: visible; }
   .native-android .android-question-swipe-current { position: relative; z-index: 2; display: block; transform: none; transition: none; will-change: auto; }
   .native-android .android-question-swipe-stage.android-swiping .android-question-swipe-current,
   .native-android .android-question-swipe-stage.android-swipe-resetting .android-question-swipe-current,
-  .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-current { transform: translate3d(var(--android-swipe-x), 0, 0); will-change: transform; }
+  .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-current,
+  .native-android .android-question-swipe-stage.android-swipe-enter-prepare .android-question-swipe-current { transform: translate3d(var(--android-swipe-x), 0, 0); will-change: transform; }
   .native-android .android-question-swipe-stage.android-swiping .android-question-swipe-current { transition: none; }
   .native-android .android-question-swipe-stage.android-swipe-resetting .android-question-swipe-current { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
   .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-current { transition: transform 155ms cubic-bezier(0.32, 0.72, 0, 1); }
-  .native-android .android-question-swipe-preview { position: absolute; z-index: 1; top: 12px; left: 10px; right: 10px; bottom: auto; width: auto; min-height: min(42dvh, 340px); display: block; pointer-events: none; opacity: 0; filter: blur(var(--android-swipe-preview-blur)); transform: translate3d(0, var(--android-swipe-preview-y), 0) scale(var(--android-swipe-preview-scale)); transform-origin: center bottom; transition: opacity 160ms ease, filter 160ms ease, transform 160ms ease; will-change: opacity, filter, transform; }
-  .native-android .android-question-swipe-preview-prev,
-  .native-android .android-question-swipe-preview-next { transform-origin: center bottom; }
-  .native-android .android-question-swipe-stage.android-swipe-prev .android-question-swipe-preview-prev,
-  .native-android .android-question-swipe-stage.android-swipe-next .android-question-swipe-preview-next { opacity: var(--android-swipe-preview-opacity); }
-  .native-android .android-question-swipe-stage.android-swipe-edge .android-question-swipe-preview { opacity: 0.22; }
-  .native-android .android-question-swipe-preview-card { min-height: min(42dvh, 340px); padding: 18px 16px; border: 1px solid rgba(228, 217, 189, 0.74); border-radius: 28px; background: rgba(255, 255, 255, 0.76); box-shadow: 0 14px 28px rgba(24, 38, 56, 0.05); }
-  .native-android .android-swipe-preview-label { display: inline-flex; margin-bottom: 12px; padding: 6px 10px; border-radius: 999px; background: rgba(45, 111, 163, 0.1); color: #1d5d91; font-size: 12px; font-weight: 900; }
-  .native-android .android-question-swipe-preview-card .type-pill { margin-left: 8px; }
-  .native-android .android-question-swipe-preview-card p { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; margin: 12px 0 0; overflow: hidden; color: rgba(23, 35, 51, 0.82); font-size: 21px; font-weight: 850; line-height: 1.46; letter-spacing: -0.03em; }
+  .native-android .android-question-swipe-stage.android-swipe-enter-prepare .android-question-swipe-current { --android-swipe-x: var(--android-swipe-enter-x); transition: none; }
+  .native-android .android-question-swipe-stage.android-swipe-entering .android-question-swipe-current { animation: android-question-enter 210ms cubic-bezier(0.22, 1, 0.36, 1) both; will-change: transform; }
+  @keyframes android-question-enter {
+    from { transform: translate3d(var(--android-swipe-enter-x), 0, 0); opacity: 0.96; }
+    to { transform: translate3d(0, 0, 0); opacity: 1; }
+  }
 
   .native-android .question-panel,
   .native-android .app-shell.sidebar-collapsed .question-panel { padding: 18px 16px 20px; border-radius: 28px; box-shadow: none; outline: 1px solid rgba(228, 217, 189, 0.64); }

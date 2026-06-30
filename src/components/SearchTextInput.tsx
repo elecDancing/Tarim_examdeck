@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type SearchTextInputProps = {
   value: string;
@@ -8,18 +8,20 @@ type SearchTextInputProps = {
 
 export function SearchTextInput({ value, onChange, placeholder }: SearchTextInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState(value);
   const composingRef = useRef(false);
+  const lastEmittedRef = useRef(value);
 
   useEffect(() => {
-    const input = inputRef.current;
-    if (!input || document.activeElement === input || input.value === value) return;
-    input.value = value;
+    lastEmittedRef.current = value;
+    setDraft(value);
   }, [value]);
 
-  const commitValue = () => {
-    const input = inputRef.current;
-    if (!input) return;
-    onChange(input.value);
+  const emitValue = (nextValue: string) => {
+    setDraft(nextValue);
+    if (composingRef.current || nextValue === lastEmittedRef.current) return;
+    lastEmittedRef.current = nextValue;
+    onChange(nextValue);
   };
 
   return (
@@ -28,14 +30,17 @@ export function SearchTextInput({ value, onChange, placeholder }: SearchTextInpu
       inputMode="search"
       enterKeyHint="search"
       autoComplete="off"
-      defaultValue={value}
+      value={draft}
       onCompositionStart={() => { composingRef.current = true; }}
       onCompositionEnd={(event) => {
         composingRef.current = false;
-        onChange(event.currentTarget.value);
+        emitValue(event.currentTarget.value);
       }}
-      onInput={() => {
-        if (!composingRef.current) commitValue();
+      onInput={(event) => {
+        emitValue(event.currentTarget.value);
+      }}
+      onChange={(event) => {
+        emitValue(event.currentTarget.value);
       }}
       placeholder={placeholder}
     />

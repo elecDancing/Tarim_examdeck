@@ -1,0 +1,17 @@
+.activity-cell {
+  appearance: none;
+  padding: 0;
+}
+
+.activity-cell.selected {
+  outline: 2px solid rgba(45, 111, 163, 0.78);
+  outline-offset: 2px;
+}
+
+.activity-selected-summary {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}

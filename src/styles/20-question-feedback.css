@@ -863,6 +863,11 @@
   box-shadow: 0 0 0 3px rgba(45, 111, 163, 0.12);
 }
 
+.note-empty-hint {
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .exam-actions {
   margin-top: 14px;
   display: flex;

@@ -2560,7 +2560,13 @@ function App() {
   }
 
   function submitPractice() {
-    if (!activeDeck || !activePractice || !currentPracticeStorageKey) return;
+    if (!activePractice || !currentPracticeStorageKey) return;
+    const practiceDeck = activeDeck ?? dataRef.current.decks.find((deck) => deck.id === activePractice.deckId) ?? null;
+    if (activePractice.questionIds.length === 0) {
+      setStatus("本轮刷题没有可提交的题目");
+      setView(practiceDeck ? "dashboard" : "home");
+      return;
+    }
     clearPracticeAutoAdvance();
     const pendingIndices = getPracticePendingIndices(activePractice);
     const unansweredIndices = getPracticeUnansweredIndices(activePractice);
@@ -2597,13 +2603,29 @@ function App() {
         }
       }
     }));
-    const practiceLabel = activePractice.scope === "favorites" ? "收藏刷题" : activePractice.scope === "mistakes" ? "错题刷题" : "顺序刷题";
+    const isHardPractice = isHardQuestionDeck(practiceDeck);
+    const practiceLabel = activePractice.scope === "favorites" ? "收藏刷题" : activePractice.scope === "mistakes" ? "错题刷题" : isHardPractice ? "重难题刷题" : "顺序刷题";
     setStatus(`${practiceLabel}交卷完成：${score}%${pendingIndices.length > 0 ? `；未完成 ${pendingIndices.length} 道：第 ${formatQuestionIndexList(pendingIndices)} 题` : ""}`);
+    if (document.documentElement.classList.contains("native-android")) {
+      void import("./lib/androidSubmitSummary").then(({ showAndroidSubmitSummary }) => showAndroidSubmitSummary({
+        title: `${practiceLabel}完成`,
+        score,
+        correct,
+        total,
+        pending: pendingIndices.length,
+        detail: "本次刷题进度已保存。",
+        onReturn: () => {
+          setAnswerProgressCollapsed(true);
+          setMistakePracticeFinishDialogOpen(false);
+          setView(practiceDeck ? "dashboard" : "home");
+        }
+      }));
+      return;
+    }
     if (activePractice.scope === "mistakes") {
       setMistakePracticeFinishDialogOpen(true);
       return;
     }
-    if (document.documentElement.classList.contains("native-android")) void import("./lib/androidSubmitSummary").then(({ showAndroidSubmitSummary }) => showAndroidSubmitSummary({ title: `${practiceLabel}完成`, score, correct, total, pending: pendingIndices.length, detail: "本次刷题进度已保存。", onReturn: () => { setAnswerProgressCollapsed(true); setView(activeDeck ? "dashboard" : "home"); } }));
   }
 
   function continueMistakePracticeFromWrong() {
@@ -3461,6 +3483,8 @@ function HomeStudyStats({ dailyStats }: { dailyStats: Record<string, DailyStudyS
   const year = new Date().getFullYear();
   const heatmap = buildStudyHeatmap(dailyStats, year);
   const yearlyAnswered = heatmap.days.reduce((sum, day) => sum + day.stat.answered, 0);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const selectedDay = useMemo(() => heatmap.days.find((day) => day.date === selectedDate) ?? heatmap.days.find((day) => day.isToday) ?? heatmap.days[heatmap.days.length - 1], [heatmap.days, selectedDate]);
   useLayoutEffect(() => {
     const timer = window.setTimeout(() => {
       const scroller = scrollRef.current;
@@ -3485,17 +3509,19 @@ function HomeStudyStats({ dailyStats }: { dailyStats: Record<string, DailyStudyS
         <div className="activity-scroll" ref={scrollRef}>
           <div className="activity-grid" style={{ gridTemplateColumns: `repeat(${heatmap.weekCount}, 13px)` }}>
             {heatmap.days.map((day) => (
-              <span
+              <button
                 key={day.date}
-                className={`activity-cell level-${day.level}${day.isToday ? " today" : ""}`}
+                className={`activity-cell level-${day.level}${day.isToday ? " today" : ""}${selectedDay?.date === day.date ? " selected" : ""}`}
                 style={{ gridColumn: day.weekIndex + 1, gridRow: day.weekday + 1 }}
                 title={`${formatStudyDate(day.date)}：刷题 ${day.stat.answered}，正确 ${day.stat.correct}，错误 ${day.stat.wrong}`}
                 aria-label={`${formatStudyDate(day.date)}刷题 ${day.stat.answered} 题`}
+                onClick={() => setSelectedDate(day.date)}
               />
             ))}
           </div>
         </div>
       </div>
+      {selectedDay && <p className="activity-selected-summary">{formatStudyDate(selectedDay.date)}：刷题 {selectedDay.stat.answered} 题，正确 {selectedDay.stat.correct}，错误 {selectedDay.stat.wrong}</p>}
     </section>
   );
 }
@@ -6337,8 +6363,9 @@ function QuestionNotePanel({
   variant?: "question" | "detail";
 }) {
   const noteId = useId();
+  const isAndroidNative = document.documentElement.classList.contains("native-android");
   const [draft, setDraft] = useState(note);
-  const [isEditing, setIsEditing] = useState(!note.trim());
+  const [isEditing, setIsEditing] = useState(!isAndroidNative && !note.trim());
   const previousQuestionId = useRef(questionId);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const shouldFocusEditor = useRef(false);
@@ -6347,13 +6374,13 @@ function QuestionNotePanel({
     setDraft(note);
     if (previousQuestionId.current !== questionId) {
       previousQuestionId.current = questionId;
-      setIsEditing(!note.trim());
+      setIsEditing(!isAndroidNative && !note.trim());
       return;
     }
-    if (!note.trim()) {
+    if (!isAndroidNative && !note.trim()) {
       setIsEditing(true);
     }
-  }, [note, questionId]);
+  }, [note, questionId, isAndroidNative]);
 
   useEffect(() => {
     if (isEditing && shouldFocusEditor.current) {
@@ -6374,7 +6401,7 @@ function QuestionNotePanel({
 
   const trimmedDraft = draft.trim();
   const hasNote = trimmedDraft.length > 0;
-  const showEditor = isEditing || !hasNote;
+  const showEditor = isEditing || (!isAndroidNative && !hasNote);
 
   return (
     <section className={variant === "detail" ? "question-note-panel detail-note-panel" : "question-note-panel"}>
@@ -6383,7 +6410,7 @@ function QuestionNotePanel({
           <NotebookPen size={17} />
           笔记
         </label>
-        <span>{hasNote ? "已记录" : "未记录"}</span>
+        {hasNote && <span>已记录</span>}
       </div>
       {showEditor ? (
         <textarea
@@ -6393,7 +6420,7 @@ function QuestionNotePanel({
           rows={variant === "detail" ? 5 : 4}
           onChange={(event) => updateDraft(event.target.value)}
           onBlur={() => {
-            if (hasNote) setIsEditing(false);
+            if (hasNote || isAndroidNative) setIsEditing(false);
           }}
           onKeyDown={(event) => {
             if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && hasNote) {
@@ -6407,8 +6434,9 @@ function QuestionNotePanel({
           className="note-preview note-preview-editable"
           role="button"
           tabIndex={0}
-          title="点击编辑笔记"
-          onClick={openEditor}
+          title={isAndroidNative ? "双击编辑笔记" : "点击编辑笔记"}
+          onClick={isAndroidNative ? undefined : openEditor}
+          onDoubleClick={openEditor}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
@@ -6416,7 +6444,7 @@ function QuestionNotePanel({
             }
           }}
         >
-          <RichText text={trimmedDraft} />
+          {hasNote ? <RichText text={trimmedDraft} /> : <span className="note-empty-hint">双击添加笔记</span>}
         </div>
       )}
     </section>

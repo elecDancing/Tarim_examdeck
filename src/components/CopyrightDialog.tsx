@@ -57,6 +57,7 @@ export function CopyrightDialog({ onClose, backShortcutLabel, shortcutModifierLa
                 <h3>数据说明</h3>
                 <p>学习记录、错题、笔记、熟练度和复习预测均保存在本机设备中。</p>
                 <p>如需在多台设备之间同步，可在“设置”中导出学习进度，再到其他设备导入。</p>
+                <p>由于个人精力有限，部分题目可能存在漏项、公式不全等问题，欢迎通过微信或邮箱反馈修正。</p>
               </section>
             </div>
             <div className="copyright-stack">

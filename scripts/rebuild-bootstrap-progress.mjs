@@ -86,6 +86,7 @@ const payload = {
     notes: {},
     favoriteQuestionIds: [],
     slashedQuestionIds: [],
+    autoHardQuestionIds: [],
     studyPlanDeckIds: [],
     sessions: [],
     activeSession: null,

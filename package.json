@@ -1,0 +1,46 @@
+{
+  "name": "examdeck",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "vitest run src/lib/*.test.ts",
+    "test:e2e": "vitest run src/e2e/*.test.tsx --environment jsdom",
+    "check:quality": "node scripts/check-quality.mjs",
+    "check:import": "node scripts/check-import.mjs",
+    "android:pack": "bash scripts/build-android-app.sh",
+    "desktop:pack": "npm run build && bash scripts/build-mac-app.sh",
+    "desktop:pack:windows": "powershell -ExecutionPolicy Bypass -File scripts/build-windows-app.ps1",
+    "desktop:open": "open release/塔里木刷题王.app"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
+    "@vitejs/plugin-react": "^5.1.1",
+    "jszip": "^3.10.1",
+    "katex": "^0.17.0",
+    "lucide-react": "^0.561.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "jsdom": "^29.1.1",
+    "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "esbuild": "0.28.1"
+  }
+}

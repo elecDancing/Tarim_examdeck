@@ -1,0 +1,111 @@
+.study-plan-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(255, 253, 248, 0.86)),
+    var(--panel);
+}
+
+.study-plan-search {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+  padding: 0 12px;
+  border: 1px solid rgba(24, 38, 56, 0.1);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.68);
+  color: #8b96a3;
+}
+
+.study-plan-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+}
+
+.study-plan-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+  gap: 8px;
+}
+
+.study-plan-item {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid rgba(24, 38, 56, 0.09);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--ink);
+  text-align: left;
+  box-shadow: none;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.study-plan-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(45, 111, 163, 0.24);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 8px 20px rgba(45, 111, 163, 0.08);
+}
+
+.study-plan-item:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.study-plan-item:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.study-plan-item.selected {
+  border-color: rgba(45, 111, 163, 0.32);
+  background: rgba(230, 241, 250, 0.76);
+}
+
+.study-plan-item-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(238, 245, 248, 0.92);
+  color: var(--accent-strong);
+}
+
+.study-plan-item.selected .study-plan-item-icon {
+  background: var(--accent);
+  color: #fff;
+}
+
+.study-plan-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.study-plan-item em {
+  font-style: normal;
+  color: #7f8a98;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.study-plan-item.selected em {
+  color: var(--accent-strong);
+}

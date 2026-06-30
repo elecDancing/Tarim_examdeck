@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>塔里木刷题王 - 关于弹窗示意图</title>
+  <style>
+    :root {
+      --ink: #152235;
+      --muted: #687587;
+      --line: #e2d2ac;
+      --panel: #fffdf8;
+      --panel-soft: #fbf7ee;
+      --brand: #173f61;
+      --accent: #2f7fb8;
+      --gold: #f6c34d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      width: 1440px;
+      min-height: 980px;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: linear-gradient(140deg, #fff8e8 0%, #f5fbff 100%);
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      min-height: 980px;
+    }
+    .sidebar {
+      position: relative;
+      padding: 28px 24px;
+      background: var(--brand);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+      overflow: hidden;
+    }
+    .sidebar::before {
+      content: "";
+      position: absolute;
+      inset: -80px -90px auto auto;
+      width: 260px;
+      height: 260px;
+      border-radius: 999px;
+      background: radial-gradient(circle at center, rgba(255, 232, 174, 0.2), rgba(255, 232, 174, 0) 68%);
+      pointer-events: none;
+      animation: brandAmbientGlow 14s cubic-bezier(0.2, 0.8, 0.2, 1) infinite alternate;
+    }
+    .brand {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+      padding: 6px;
+      margin: -6px;
+      border-radius: 16px;
+      animation: brandCardIn 980ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .brand-mark {
+      width: 58px;
+      height: 58px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: var(--gold);
+      color: #12314f;
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 0;
+      --brand-mark-scale-from: 1;
+      --brand-mark-scale-to: 1.024;
+      --brand-mark-shadow-from: 0 8px 18px rgba(246, 195, 77, 0.22);
+      --brand-mark-shadow-to: 0 10px 24px rgba(246, 195, 77, 0.3);
+      --brand-mark-brightness-from: 1;
+      --brand-mark-brightness-to: 1.025;
+      box-shadow: 0 8px 18px rgba(246, 195, 77, 0.22);
+      transform-origin: center;
+      will-change: transform, box-shadow, filter;
+      backface-visibility: hidden;
+      animation: brandMarkIn 900ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both, brandMarkBreathe 7.8s cubic-bezier(0.45, 0, 0.55, 1) 1450ms infinite alternate;
+      transition: box-shadow 360ms ease, filter 360ms ease;
+    }
+    .brand:hover .brand-mark {
+      --brand-mark-scale-from: 1.018;
+      --brand-mark-scale-to: 1.045;
+      --brand-mark-shadow-from: 0 10px 24px rgba(246, 195, 77, 0.3);
+      --brand-mark-shadow-to: 0 13px 30px rgba(246, 195, 77, 0.38);
+      --brand-mark-brightness-from: 1.02;
+      --brand-mark-brightness-to: 1.05;
+    }
+    .brand-mark-glyph {
+      display: block;
+    }
+    .brand strong {
+      display: block;
+      font-size: 22px;
+      line-height: 1.1;
+      font-weight: 900;
+      letter-spacing: 0;
+      animation: brandTitleIn 820ms cubic-bezier(0.16, 1, 0.3, 1) 420ms both;
+    }
+    .brand-copy > span {
+      display: block;
+      margin-top: 6px;
+      color: #d4e8fb;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.35;
+      letter-spacing: 0;
+      animation: brandSubtitleIn 820ms cubic-bezier(0.16, 1, 0.3, 1) 720ms both;
+    }
+    .brand-food-highlight {
+      display: inline;
+      color: #ffd47a;
+      font-weight: 950;
+      text-shadow:
+        0 0 10px rgba(246, 195, 77, 0.22),
+        0 1px 0 rgba(20, 43, 68, 0.18);
+    }
+    @keyframes brandCardIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes brandMarkIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes brandMarkBreathe {
+      from { transform: scale(var(--brand-mark-scale-from)); box-shadow: var(--brand-mark-shadow-from); filter: brightness(var(--brand-mark-brightness-from)); }
+      to { transform: scale(var(--brand-mark-scale-to)); box-shadow: var(--brand-mark-shadow-to); filter: brightness(var(--brand-mark-brightness-to)); }
+    }
+    @keyframes brandTitleIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes brandSubtitleIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes brandAmbientGlow {
+      from { transform: translate3d(10px, -8px, 0) scale(0.95); }
+      to { transform: translate3d(-16px, 12px, 0) scale(1.08); }
+    }
+    .nav {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .nav-item {
+      min-height: 48px;
+      border-radius: 8px;
+      padding: 0 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #eaf5ff;
+      font-weight: 800;
+      font-size: 18px;
+    }
+    .nav-item.active {
+      background: #2c6f9d;
+      outline: 1px solid rgba(246, 195, 77, 0.55);
+      box-shadow: inset 4px 0 0 var(--gold);
+    }
+    .status {
+      margin-top: auto;
+      padding: 16px;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 8px;
+      color: #d5eaf8;
+      font-weight: 800;
+    }
+    .main {
+      position: relative;
+      padding: 42px;
+    }
+    .fake-page {
+      display: grid;
+      gap: 18px;
+    }
+    .search,
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 253, 248, .92);
+      box-shadow: 0 18px 60px rgba(18, 43, 68, .08);
+    }
+    .search {
+      height: 68px;
+    }
+    .panel {
+      height: 220px;
+    }
+    .backdrop {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      background: rgba(18, 43, 68, 0.42);
+    }
+    .dialog {
+      width: 880px;
+      max-height: 900px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 24px 72px rgba(18, 43, 68, 0.24);
+      padding: 22px;
+    }
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(224, 210, 172, .62);
+    }
+    .eyebrow {
+      color: #2f6f9d;
+      font-weight: 900;
+      font-size: 13px;
+      letter-spacing: 0;
+    }
+    h1 {
+      margin: 3px 0 0;
+      font-size: 30px;
+      line-height: 1.12;
+    }
+    .close {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-weight: 900;
+      background: #fff;
+    }
+    .content {
+      display: grid;
+      gap: 12px;
+      padding-top: 16px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    section {
+      display: grid;
+      gap: 7px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-soft);
+    }
+    h2 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.2;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 750;
+      line-height: 1.62;
+    }
+    .compact-grid {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 14px;
+    }
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+    .contact-card {
+      background: linear-gradient(135deg, #fffdf7 0%, #f4fbff 100%);
+    }
+    .contact-row {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 8px 10px;
+      align-items: baseline;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.4;
+    }
+    .contact-row strong {
+      color: var(--ink);
+    }
+    .shortcut-list {
+      display: grid;
+      gap: 6px;
+    }
+    .shortcut-list span {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+    .shortcut-list strong {
+      color: var(--ink);
+      font-size: 14px;
+    }
+    .qr-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .qr-card {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid rgba(224, 210, 172, .86);
+      border-radius: 8px;
+      background: #fff;
+      min-height: 278px;
+    }
+    .qr-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+    }
+    .qr-title h2 {
+      font-size: 16px;
+    }
+    .qr-title span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .qr-card img {
+      width: 100%;
+      height: 195px;
+      object-fit: contain;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .qr-card p {
+      text-align: center;
+      font-size: 13px;
+    }
+    .footer {
+      text-align: center;
+      color: #9aa8b2;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 2px 0 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><span class="brand-mark-glyph">塔</span></div>
+        <div class="brand-copy">
+          <strong>里木刷题王</strong>
+          <span><span class="brand-food-highlight">大盘鸡</span>时间到了<br>别学了吃一点吧</span>
+        </div>
+      </div>
+      <div class="nav">
+        <div class="nav-item active">← 题库首页</div>
+        <div class="nav-item">▣ 每日复习</div>
+        <div class="nav-item">☆ 收藏</div>
+        <div class="nav-item">⚔ 已斩</div>
+        <div class="nav-item">▤ 今日总结</div>
+        <div class="nav-item">↥ 导入</div>
+        <div class="nav-item">↧ 导出</div>
+        <div class="nav-item">⚙ 设置</div>
+      </div>
+      <div class="status">点击左上角图标打开此窗口</div>
+    </aside>
+    <main class="main">
+      <div class="fake-page">
+        <div class="search"></div>
+        <div class="panel"></div>
+        <div class="panel"></div>
+      </div>
+      <div class="backdrop">
+        <article class="dialog">
+          <header class="header">
+            <div>
+              <span class="eyebrow">关于 / 反馈</span>
+              <h1>塔里木刷题王</h1>
+            </div>
+            <div class="close">×</div>
+          </header>
+          <div class="content">
+            <div class="compact-grid">
+              <div class="stack">
+                <section>
+                  <h2>版权与使用说明</h2>
+                  <p>本软件为个人学习与内部备考辅助工具，所有功能完全免费。</p>
+                  <p>请勿反编译、爬取题库、批量复制题库内容，或将本软件及题库用于商业售卖、公开传播和二次分发。</p>
+                </section>
+                <section>
+                  <h2>使用范围</h2>
+                  <p>请勿将本软件及题库内容用于商业售卖、公开传播、二次分发或其他侵犯权利人权益的用途。</p>
+                  <p>如题库内容存在版权争议，应以权利人要求为准，及时删除或替换相关资料。</p>
+                </section>
+                <section>
+                  <h2>数据说明</h2>
+                  <p>学习记录、错题、笔记、熟练度和复习预测均保存在本机设备中。</p>
+                  <p>如需多设备同步，可在“设置”中导出学习进度，再到其他设备导入。</p>
+                </section>
+              </div>
+              <div class="stack">
+                <section class="contact-card">
+                  <h2>Bug 反馈与联系</h2>
+                  <div class="contact-row"><strong>作者邮箱</strong><span>lu3na1r9iv8e@icloud.com</span></div>
+                  <div class="contact-row"><strong>微信</strong><span>扫码添加作者，备注“题库导入”或“Bug 反馈”。</span></div>
+                  <p>如需要导入题库帮助，可联系作者微信：找书 5r/本，个性化题库导入 5r/500 道客观题。</p>
+                </section>
+                <section>
+                  <h2>快捷键说明</h2>
+                  <div class="shortcut-list">
+                    <span><strong>1 / 2 / 3 / 4</strong>选择对应选项</span>
+                    <span><strong>空格</strong>多选确认或进入下一题</span>
+                    <span><strong>Command + Z</strong>返回上一题</span>
+                    <span><strong>Command + 1</strong>收藏 / 取消收藏</span>
+                    <span><strong>Command + 4</strong>斩题 / 取消斩题</span>
+                    <span><strong>Command + 5</strong>加入 / 移出重难题库</span>
+                  </div>
+                </section>
+              </div>
+            </div>
+            <section>
+              <h2>支持作者</h2>
+              <p>如果这个软件对你的备考有帮助，可以自愿打赏支持作者。感谢你的认可，也欢迎反馈问题和改进建议。</p>
+            </section>
+            <div class="qr-grid">
+              <div class="qr-card">
+                <div class="qr-title">
+                  <h2>微信联系作者</h2>
+                  <span>题库导入 / Bug 反馈</span>
+                </div>
+                <img src="file:///Users/xuepengzhang/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_q5o889h5tmnr22_0419/temp/RWTemp/2026-06/20c3a6493ea152b43b84d800e2e5b5bb/c08de571555a85be375c69e873851180.jpg" alt="作者微信二维码">
+                <p>扫码添加作者微信</p>
+              </div>
+              <div class="qr-card">
+                <div class="qr-title">
+                  <h2>打赏支持</h2>
+                </div>
+                <img src="file:///Users/xuepengzhang/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_q5o889h5tmnr22_0419/temp/RWTemp/2026-06/20c3a6493ea152b43b84d800e2e5b5bb/264c65815a26662395f032d92fa8112e.png" alt="微信支付打赏码">
+                <p>觉得好用可以打赏一下作者，非常感谢！</p>
+              </div>
+            </div>
+            <div class="footer">Powered by NiDiPengShao</div>
+<!--
+            <div class="grid-2">
+              <section>
+                <h2>版权与使用说明</h2>
+                <p>本软件为个人学习与内部备考辅助工具，所有功能完全免费。</p>
+                <p>请勿反编译、爬取题库、批量复制题库内容，或将本软件及题库用于商业售卖、公开传播和二次分发。</p>
+              </section>
+              <section class="contact-card">
+                <h2>Bug 反馈与联系</h2>
+                <div class="contact-row"><strong>作者邮箱</strong><span>lu3na1r9iv8e@icloud.com</span></div>
+                <div class="contact-row"><strong>微信</strong><span>扫码添加作者，备注“题库导入”或“Bug 反馈”。</span></div>
+                <p>如需要导入题库帮助，可联系作者微信：找书 5r/本，个性化题库导入 5r/500 道客观题。</p>
+              </section>
+            </div>
+            <section>
+              <h2>支持作者</h2>
+              <p>如果这个软件对你的备考有帮助，可以自愿打赏支持作者。感谢你的认可，也欢迎反馈问题和改进建议。</p>
+            </section>
+            <div class="qr-grid">
+              <div class="qr-card">
+                <div class="qr-title">
+                  <h2>微信联系作者</h2>
+                  <span>题库导入 / Bug 反馈</span>
+                </div>
+                <img src="file:///Users/xuepengzhang/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_q5o889h5tmnr22_0419/temp/RWTemp/2026-06/20c3a6493ea152b43b84d800e2e5b5bb/c08de571555a85be375c69e873851180.jpg" alt="作者微信二维码">
+                <p>扫码添加作者微信</p>
+              </div>
+              <div class="qr-card">
+                <div class="qr-title">
+                  <h2>打赏支持</h2>
+                </div>
+                <img src="file:///Users/xuepengzhang/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_q5o889h5tmnr22_0419/temp/RWTemp/2026-06/20c3a6493ea152b43b84d800e2e5b5bb/264c65815a26662395f032d92fa8112e.png" alt="微信支付打赏码">
+                <p>觉得好用可以打赏一下作者，非常感谢！</p>
+              </div>
+            </div>
+            <div class="footer">Powered by NiDiPengShao</div>
+-->
+          </div>
+        </article>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

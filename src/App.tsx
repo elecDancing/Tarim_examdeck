@@ -1719,17 +1719,21 @@ function App() {
     executeDeleteDeck(deckActionDialog.deckId);
   }
 
+  function discardSubmittedPractice(storageKey: string) { setData((previous) => { if (!previous.practices[storageKey]?.submittedAt) return previous; const { [storageKey]: _submittedPractice, ...nextPractices } = previous.practices; return { ...previous, practices: nextPractices }; }); }
+
   function openDeckView(deckId: string, nextView: View = "dashboard") {
     clearAutoAdvanceTimers();
     const deck = deckId === ALL_DAILY_REVIEW_DECK_ID ? allDailyReviewDeck : data.decks.find((deck) => deck.id === deckId) ?? null;
+    const isHardDeck = isHardQuestionDeck(deck);
     const resolvedView = isHardQuestionDeck(deck) && !HARD_DECK_NAV_KEYS.has(nextView)
       ? "practice"
       : isAllDailyReviewDeck(deck) && nextView !== "review"
         ? "review"
         : nextView;
+    if (isHardDeck && document.documentElement.classList.contains("native-android") && data.practices[deckId]?.submittedAt) discardSubmittedPractice(deckId);
     setActiveDeckId(deckId);
     setActivePracticeStorageKey(deckId);
-    if (deck && !isHardQuestionDeck(deck) && !isAllDailyReviewDeck(deck)) {
+    if (deck && !isHardDeck && !isAllDailyReviewDeck(deck)) {
       setConfig(buildDefaultExamConfig(getDeckQuestions(data.questions, deck)));
     }
     setQuery("");
@@ -2641,9 +2645,10 @@ function App() {
           }
         } : undefined,
         onReturn: () => {
+          if (isHardPractice && currentPracticeStorageKey) discardSubmittedPractice(currentPracticeStorageKey);
           setAnswerProgressCollapsed(true);
           setMistakePracticeFinishDialogOpen(false);
-          setView(practiceDeck ? "dashboard" : "home");
+          setView(isHardPractice ? "practice" : practiceDeck ? "dashboard" : "home");
         }
       }));
       return;
@@ -4130,7 +4135,7 @@ function Dashboard({
   const activeExamAnswered = activeSession?.items.filter((item) => item.selectedKeys.length > 0).length ?? 0;
 
   return (
-    <section className="page">
+    <section className="page deck-dashboard-page">
       <Header title="工作台" subtitle={deck?.name ?? "未选择题库"} />
       <div className="metric-grid">
         <Metric label="客观题" value={questions.length} detail={`判断 ${typeCounts["判断题"]} / 单选 ${typeCounts["单选题"]} / 多选 ${typeCounts["多选题"]}`} />

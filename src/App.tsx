@@ -3426,17 +3426,25 @@ function HomeTaskPanel({
   const reviewSummary = useMemo(() => buildDailyReviewSummary(reviewQuestions, data.stats), [reviewQuestions, data.stats]);
   const activeDailySession = getCurrentDailyReviewSession(data, ALL_DAILY_REVIEW_DECK_ID, todayKey);
   const finished = activeDailySession?.items.filter((item) => item.isCorrect !== undefined).length ?? 0;
-  const queuedTotal = activeDailySession?.items.length ?? reviewSummary.due;
+  const dueDisplay = activeDailySession?.items.length ?? reviewSummary.due;
+  const overdueDisplay = activeDailySession?.items.filter((item) => item.overdueDays > 0).length ?? reviewSummary.overdue;
+  const deckByQuestionId = useMemo(() => new Map(data.decks.filter((deck) => !isHardQuestionDeck(deck)).flatMap((deck) => deck.questionIds.map((questionId) => [questionId, deck] as const))), [data.decks]);
   const deckReviewSummaries = useMemo(() => data.decks.filter((deck) => !isHardQuestionDeck(deck)).map((deck) => {
     const questions = getDeckQuestions(data.questions, deck);
     const reviewQuestions = questions.filter((question) => !slashedQuestionSet.has(question.id));
     const reviewSummary = buildDailyReviewSummary(reviewQuestions, data.stats);
     return { deck, reviewSummary };
   }), [data, slashedQuestionSet]);
-  const topDueDecks = deckReviewSummaries
-    .filter((item) => item.reviewSummary.totalDue > 0)
-    .sort((a, b) => b.reviewSummary.totalDue - a.reviewSummary.totalDue || b.reviewSummary.totalOverdue - a.reviewSummary.totalOverdue)
-    .slice(0, 3);
+  const topDueDecks = activeDailySession ? [...activeDailySession.items.reduce((map, item) => {
+      const deck = deckByQuestionId.get(item.questionId);
+      if (!deck) return map;
+      const current = map.get(deck.id) ?? { id: deck.id, name: deck.name, count: 0, overdue: 0 };
+      current.count += 1;
+      if (item.overdueDays > 0) current.overdue += 1;
+      map.set(deck.id, current);
+      return map;
+    }, new Map<string, { id: string; name: string; count: number; overdue: number }>()).values()].sort((a, b) => b.count - a.count || b.overdue - a.overdue).slice(0, 3)
+    : deckReviewSummaries.filter((item) => item.reviewSummary.totalDue > 0).sort((a, b) => b.reviewSummary.totalDue - a.reviewSummary.totalDue || b.reviewSummary.totalOverdue - a.reviewSummary.totalOverdue).slice(0, 3).map((item) => ({ id: item.deck.id, name: item.deck.name, count: item.reviewSummary.totalDue, overdue: item.reviewSummary.totalOverdue }));
   const canStartReview = Boolean(activeDailySession) || reviewSummary.due > 0;
   const reviewDayActivity = useMemo(() => buildReviewDayActivitySummary(data.stats, todayKey), [data.stats, todayKey]);
   const completion = data.dailyReviewCompletion;
@@ -3471,11 +3479,11 @@ function HomeTaskPanel({
       <div className="task-metric-grid">
         <div>
           <span>今日应复习</span>
-          <strong>{reviewSummary.due}</strong>
+          <strong>{dueDisplay}</strong>
         </div>
         <div>
           <span>逾期顺延</span>
-          <strong>{reviewSummary.overdue}</strong>
+          <strong>{overdueDisplay}</strong>
         </div>
         <div>
           <span>已学习</span>
@@ -3483,7 +3491,7 @@ function HomeTaskPanel({
         </div>
         <div>
           <span>今日进度</span>
-          <strong>{activeDailySession ? `${finished}/${activeDailySession.items.length}` : `0/${queuedTotal}`}</strong>
+          <strong>{activeDailySession ? `${finished}/${activeDailySession.items.length}` : `0/${dueDisplay}`}</strong>
         </div>
       </div>
       <div className="daily-review-home-copy">
@@ -3495,19 +3503,12 @@ function HomeTaskPanel({
       {topDueDecks.length > 0 && (
         <div className="daily-review-breakdown" aria-label="到期题库预览">
           {topDueDecks.map((item) => (
-            <span key={item.deck.id}>
-              {item.deck.name}：{item.reviewSummary.totalDue} 道
-            </span>
+            <span key={item.id}>{item.name}：{item.count} 道</span>
           ))}
         </div>
       )}
       <div className="task-action-grid daily-review-action-grid">
-        <button
-          className="primary-button"
-          type="button"
-          disabled={!canStartReview}
-          onClick={startAllDailyReview}
-        >
+        <button className="primary-button" type="button" disabled={!canStartReview} onClick={startAllDailyReview}>
           <CalendarCheck size={18} />
           {activeDailySession ? "继续全题库每日复习" : "开始全题库每日复习"}
         </button>
@@ -3521,8 +3522,6 @@ function HomeStudyStats({ dailyStats }: { dailyStats: Record<string, DailyStudyS
   const year = new Date().getFullYear();
   const heatmap = buildStudyHeatmap(dailyStats, year);
   const yearlyAnswered = heatmap.days.reduce((sum, day) => sum + day.stat.answered, 0);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const selectedDay = useMemo(() => heatmap.days.find((day) => day.date === selectedDate) ?? heatmap.days.find((day) => day.isToday) ?? heatmap.days[heatmap.days.length - 1], [heatmap.days, selectedDate]);
   useLayoutEffect(() => {
     const timer = window.setTimeout(() => {
       const scroller = scrollRef.current;
@@ -3549,17 +3548,16 @@ function HomeStudyStats({ dailyStats }: { dailyStats: Record<string, DailyStudyS
             {heatmap.days.map((day) => (
               <button
                 key={day.date}
-                className={`activity-cell level-${day.level}${day.isToday ? " today" : ""}${selectedDay?.date === day.date ? " selected" : ""}`}
+                type="button"
+                className={`activity-cell level-${day.level}${day.isToday ? " today" : ""}`}
                 style={{ gridColumn: day.weekIndex + 1, gridRow: day.weekday + 1 }}
                 title={`${formatStudyDate(day.date)}：刷题 ${day.stat.answered}，正确 ${day.stat.correct}，错误 ${day.stat.wrong}`}
                 aria-label={`${formatStudyDate(day.date)}刷题 ${day.stat.answered} 题`}
-                onClick={() => setSelectedDate(day.date)}
               />
             ))}
           </div>
         </div>
       </div>
-      {selectedDay && <p className="activity-selected-summary">{formatStudyDate(selectedDay.date)}：刷题 {selectedDay.stat.answered} 题，正确 {selectedDay.stat.correct}，错误 {selectedDay.stat.wrong}</p>}
     </section>
   );
 }

@@ -44,7 +44,7 @@ const SWIPE_COMMIT_MIN_PX = 72;
 const SWIPE_COMMIT_MAX_PX = 108;
 const SWIPE_COMMIT_RATIO = 0.24;
 const SWIPE_TAP_MAX_MOVE_PX = 9;
-const SWIPE_MAX_DRAG_PX = 196;
+const SWIPE_MAX_DRAG_RATIO = 1;
 const SWIPE_RESET_MS = 220;
 const SWIPE_COMMIT_MS = 155;
 const SWIPE_TAP_DEBOUNCE_MS = 220;
@@ -53,18 +53,17 @@ function getSwipeStage() {
   return document.querySelector<HTMLElement>(".android-question-swipe-stage");
 }
 
+function getSwipeStageWidth() {
+  return Math.max(1, getSwipeStage()?.clientWidth ?? window.innerWidth);
+}
+
 function getSwipeCommitPx() {
-  return Math.min(SWIPE_COMMIT_MAX_PX, Math.max(SWIPE_COMMIT_MIN_PX, window.innerWidth * SWIPE_COMMIT_RATIO));
+  return Math.min(SWIPE_COMMIT_MAX_PX, Math.max(SWIPE_COMMIT_MIN_PX, getSwipeStageWidth() * SWIPE_COMMIT_RATIO));
 }
 
 function setStageVars(stage: HTMLElement, dx: number, progress: number) {
-  const previewLift = 24 * (1 - progress);
   stage.style.setProperty("--android-swipe-x", `${dx.toFixed(1)}px`);
   stage.style.setProperty("--android-swipe-progress", progress.toFixed(3));
-  stage.style.setProperty("--android-swipe-preview-opacity", (progress > 0 ? 0.1 + progress * 0.88 : 0).toFixed(3));
-  stage.style.setProperty("--android-swipe-preview-blur", `${Math.max(0, 14 - progress * 14).toFixed(1)}px`);
-  stage.style.setProperty("--android-swipe-preview-scale", (0.94 + progress * 0.06).toFixed(3));
-  stage.style.setProperty("--android-swipe-preview-y", `${previewLift.toFixed(1)}px`);
 }
 
 export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
@@ -202,7 +201,8 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
       const direction: SwipeDirection = dx > 0 ? "previous" : "next";
       const canCommit = direction === "previous" ? canGoPrevious() : canGoNext();
       const resistedDx = dx * (canCommit ? 1 : 0.34);
-      const clampedDx = Math.max(-SWIPE_MAX_DRAG_PX, Math.min(SWIPE_MAX_DRAG_PX, resistedDx));
+      const maxDrag = getSwipeStageWidth() * SWIPE_MAX_DRAG_RATIO;
+      const clampedDx = Math.max(-maxDrag, Math.min(maxDrag, resistedDx));
       const progress = Math.min(1, Math.abs(clampedDx) / getSwipeCommitPx());
       stage.classList.remove("android-swipe-resetting", "android-swipe-committing");
       stage.classList.add("android-swiping");
@@ -228,7 +228,8 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
       if (stage) {
         stage.classList.remove("android-swiping", "android-swipe-edge");
         stage.classList.add("android-swipe-committing", direction === "previous" ? "android-swipe-prev" : "android-swipe-next");
-        setStageVars(stage, direction === "previous" ? window.innerWidth : -window.innerWidth, 1);
+        const stageWidth = stage.clientWidth || window.innerWidth;
+        setStageVars(stage, direction === "previous" ? stageWidth : -stageWidth, 1);
       }
       commitTimer = window.setTimeout(() => {
         const didNavigate = navigateByDirection(direction);

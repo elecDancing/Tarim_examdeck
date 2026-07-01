@@ -766,25 +766,17 @@
     transform: none;
   }
 
-  .native-android .android-question-swipe-stage { position: relative; display: block; --android-swipe-x: 0px; overflow: hidden; border-radius: 30px; }
-  .native-android .android-question-swipe-current { position: relative; z-index: 2; display: block; transform: none; transition: none; will-change: auto; }
-  .native-android .android-question-swipe-stage.android-swiping .android-question-swipe-current,
-  .native-android .android-question-swipe-stage.android-swipe-resetting .android-question-swipe-current,
-  .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-current { transform: translate3d(var(--android-swipe-x), 0, 0); will-change: transform; }
-  .native-android .android-question-swipe-stage.android-swiping .android-question-swipe-current { transition: none; }
-  .native-android .android-question-swipe-stage.android-swipe-resetting .android-question-swipe-current { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
-  .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-current { transition: transform 155ms cubic-bezier(0.32, 0.72, 0, 1); }
-  .native-android .android-question-swipe-preview { position: absolute; inset: 0; z-index: 1; display: block; pointer-events: none; opacity: 0; transform: translate3d(0, 0, 0); will-change: transform, opacity; }
+  .native-android .android-question-swipe-stage { position: relative; display: block; --android-swipe-x: 0px; overflow: hidden; border-radius: 30px; touch-action: pan-y; }
+  .native-android .android-question-swipe-track { display: flex; width: 300%; align-items: flex-start; transform: translate3d(calc(-33.333333% + var(--android-swipe-x)), 0, 0); will-change: transform; }
+  .native-android .android-question-swipe-page { flex: 0 0 33.333333%; width: 33.333333%; box-sizing: border-box; }
+  .native-android .android-question-swipe-current { display: block; }
+  .native-android .android-question-swipe-preview { position: relative; display: block; pointer-events: none; opacity: 1; }
   .native-android .android-question-swipe-preview .question-panel { margin: 0; }
   .native-android .android-question-swipe-preview-card { min-height: 100%; }
   .native-android .android-swipe-empty-text { margin: 0; padding: 42px 16px; color: var(--muted); font-size: 16px; font-weight: 900; text-align: center; }
-  .native-android .android-question-swipe-stage.android-swipe-next .android-question-swipe-preview-next,
-  .native-android .android-question-swipe-stage.android-swipe-prev .android-question-swipe-preview-prev { opacity: 1; }
-  .native-android .android-question-swipe-stage.android-swipe-next .android-question-swipe-preview-next { transform: translate3d(calc(100vw + var(--android-swipe-x)), 0, 0); }
-  .native-android .android-question-swipe-stage.android-swipe-prev .android-question-swipe-preview-prev { transform: translate3d(calc(-100vw + var(--android-swipe-x)), 0, 0); }
-  .native-android .android-question-swipe-stage.android-swiping .android-question-swipe-preview { transition: none; }
-  .native-android .android-question-swipe-stage.android-swipe-resetting .android-question-swipe-preview { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease; }
-  .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-preview { transition: transform 155ms cubic-bezier(0.32, 0.72, 0, 1), opacity 120ms ease; }
+  .native-android .android-question-swipe-stage.android-swiping .android-question-swipe-track { transition: none; }
+  .native-android .android-question-swipe-stage.android-swipe-resetting .android-question-swipe-track { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-track { transition: transform 155ms cubic-bezier(0.32, 0.72, 0, 1); }
 
   .native-android .question-panel,
   .native-android .app-shell.sidebar-collapsed .question-panel { padding: 18px 16px 20px; border-radius: 28px; box-shadow: none; outline: 1px solid rgba(228, 217, 189, 0.64); }

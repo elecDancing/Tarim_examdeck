@@ -37,13 +37,15 @@ function PreviewQuestionPanel({ question }: { question?: Question | null }) {
 export function AndroidQuestionSwipeStage({ previous, next, children }: AndroidQuestionSwipeStageProps) {
   return (
     <div className="android-question-swipe-stage">
-      <div className="android-question-swipe-preview android-question-swipe-preview-prev" aria-hidden="true">
-        <PreviewQuestionPanel question={previous} />
+      <div className="android-question-swipe-track">
+        <div className="android-question-swipe-page android-question-swipe-preview android-question-swipe-preview-prev" aria-hidden="true">
+          <PreviewQuestionPanel question={previous} />
+        </div>
+        <div className="android-question-swipe-page android-question-swipe-current">{children}</div>
+        <div className="android-question-swipe-page android-question-swipe-preview android-question-swipe-preview-next" aria-hidden="true">
+          <PreviewQuestionPanel question={next} />
+        </div>
       </div>
-      <div className="android-question-swipe-preview android-question-swipe-preview-next" aria-hidden="true">
-        <PreviewQuestionPanel question={next} />
-      </div>
-      <div className="android-question-swipe-current">{children}</div>
     </div>
   );
 }

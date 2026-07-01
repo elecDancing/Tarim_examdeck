@@ -1,0 +1,56 @@
+name: Build Windows Desktop
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+        env:
+          VITE_DISABLE_QUESTION_BANK_EXPORT: "1"
+
+      - name: Publish WPF app
+        shell: pwsh
+        run: |
+          dotnet publish windows/TarimExamdeck.Windows.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=false `
+            -o release/windows/publish
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: makensis installer/windows/TarimExamdeck.nsi
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v5
+        with:
+          name: tarim-examdeck-windows-setup
+          path: release/塔里木刷题王-setup.exe
+          if-no-files-found: error

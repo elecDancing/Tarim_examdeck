@@ -4279,7 +4279,7 @@ function ExamView({
             <AnswerProgressToggle collapsed={progressCollapsed} setCollapsed={setProgressCollapsed} />
           </div>
         </div>
-        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(activeSession.items[currentIndex - 1].questionId) : null} next={currentIndex < activeSession.items.length - 1 ? questionById.get(activeSession.items[currentIndex + 1].questionId) : null}>
+        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(activeSession.items[currentIndex - 1].questionId) : null} next={currentIndex < activeSession.items.length - 1 ? questionById.get(activeSession.items[currentIndex + 1].questionId) : null} favoriteQuestionSet={favoriteQuestionSet} slashedQuestionSet={slashedQuestionSet} hardQuestionSet={hardQuestionSet}>
         <article className="question-panel">
           <div className="question-panel-tools">
             <span className="type-pill">{question.type}</span>
@@ -4306,7 +4306,7 @@ function ExamView({
                 reveal && selected && !correct ? "wrong" : ""
               ].filter(Boolean).join(" ");
               return (
-                <button key={option.key} className={className} onClick={() => toggleOption(option.key)} disabled={submitted}>
+                <button key={`${question.id}-${option.key}`} className={className} onClick={() => toggleOption(option.key)} disabled={submitted}>
                   <span className="option-key">{optionDisplayKey(index)}</span>
                   <RichText text={option.text} />
                 </button>
@@ -4456,7 +4456,7 @@ function DailyReviewView({
             <AnswerProgressToggle collapsed={progressCollapsed} setCollapsed={setProgressCollapsed} />
           </div>
         </div>
-        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(activeReviewSession.items[currentIndex - 1].questionId) : null} next={currentIndex < activeReviewSession.items.length - 1 ? questionById.get(activeReviewSession.items[currentIndex + 1].questionId) : null}>
+        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(activeReviewSession.items[currentIndex - 1].questionId) : null} next={currentIndex < activeReviewSession.items.length - 1 ? questionById.get(activeReviewSession.items[currentIndex + 1].questionId) : null} favoriteQuestionSet={favoriteQuestionSet} slashedQuestionSet={slashedQuestionSet} hardQuestionSet={hardQuestionSet}>
         <article className="question-panel">
           <div className="question-panel-tools">
             <span className="type-pill">{question.type}</span>
@@ -4483,7 +4483,7 @@ function DailyReviewView({
                 reveal && selected && !correct ? "wrong" : ""
               ].filter(Boolean).join(" ");
               return (
-                <button key={option.key} className={className} onClick={() => toggleDailyReviewOption(option.key)} disabled={!document.documentElement.classList.contains("native-android") && reveal} aria-disabled={reveal}>
+                <button key={`${question.id}-${option.key}`} className={className} onClick={() => toggleDailyReviewOption(option.key)} disabled={!document.documentElement.classList.contains("native-android") && reveal} aria-disabled={reveal}>
                   <span className="option-key">{optionDisplayKey(index)}</span>
                   <RichText text={option.text} />
                 </button>
@@ -4764,7 +4764,7 @@ function PracticeView({
             <AnswerProgressToggle collapsed={progressCollapsed} setCollapsed={setProgressCollapsed} />
           </div>
         </div>
-        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(practice.questionIds[currentIndex - 1]) : null} next={currentIndex < practice.questionIds.length - 1 ? questionById.get(practice.questionIds[currentIndex + 1]) : null}>
+        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(practice.questionIds[currentIndex - 1]) : null} next={currentIndex < practice.questionIds.length - 1 ? questionById.get(practice.questionIds[currentIndex + 1]) : null} favoriteQuestionSet={favoriteQuestionSet} slashedQuestionSet={slashedQuestionSet} hardQuestionSet={hardQuestionSet}>
         <article className="question-panel">
           <div className="question-panel-tools">
             <span className="type-pill">{question.type}</span>
@@ -4791,7 +4791,7 @@ function PracticeView({
                 reveal && selected && !correct ? "wrong" : ""
               ].filter(Boolean).join(" ");
               return (
-                <button key={option.key} className={className} onClick={() => togglePracticeOption(option.key)} disabled={!document.documentElement.classList.contains("native-android") && (isReviewMode || submitted || isFinalized)} aria-disabled={isReviewMode || submitted || isFinalized}>
+                <button key={`${question.id}-${option.key}`} className={className} onClick={() => togglePracticeOption(option.key)} disabled={!document.documentElement.classList.contains("native-android") && (isReviewMode || submitted || isFinalized)} aria-disabled={isReviewMode || submitted || isFinalized}>
                   <span className="option-key">{optionDisplayKey(index)}</span>
                   <RichText text={option.text} />
                 </button>

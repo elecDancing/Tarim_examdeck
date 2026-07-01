@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { flushSync } from "react-dom";
 import type { DailyReviewSession, Deck, ExamSession, PracticeState, Question } from "../types";
 import { getPracticeActiveIndex, getPracticeMode, isHardQuestionDeck } from "./appRules";
 
@@ -232,7 +233,10 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
         setStageVars(stage, direction === "previous" ? stageWidth : -stageWidth, 1);
       }
       commitTimer = window.setTimeout(() => {
-        const didNavigate = navigateByDirection(direction);
+        let didNavigate = false;
+        flushSync(() => {
+          didNavigate = navigateByDirection(direction);
+        });
         if (!didNavigate) {
           resetStage();
           committedSwipe = false;

@@ -55,10 +55,11 @@ jobs:
             throw "makensis.exe was not found after installing NSIS"
           }
           & $makensis installer/windows/TarimExamdeck.nsi
+          Copy-Item -LiteralPath "release/塔里木刷题王-setup.exe" -Destination "release/tarim-examdeck-setup.exe" -Force
 
       - name: Upload installer
         uses: actions/upload-artifact@v5
         with:
           name: tarim-examdeck-windows-setup
-          path: release/塔里木刷题王-setup.exe
+          path: release/tarim-examdeck-setup.exe
           if-no-files-found: error

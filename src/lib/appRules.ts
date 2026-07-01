@@ -692,6 +692,8 @@ export function shouldUsePersistentData(stored: AppData, current: AppData) {
   if (current.questions.length === 0 && current.decks.length === 0) return true;
   if (stored.questions.length > current.questions.length) return true;
   if (stored.decks.length > current.decks.length) return true;
+  if (Object.keys(stored.practices ?? {}).length > Object.keys(current.practices ?? {}).length) return true;
+  if (Object.keys(stored.dailyReviewSessions ?? {}).length > Object.keys(current.dailyReviewSessions ?? {}).length) return true;
   return Object.keys(stored.stats ?? {}).length > Object.keys(current.stats ?? {}).length;
 }
 
@@ -1810,6 +1812,38 @@ export function buildMistakePractice(deckId: string, questions: Question[], shuf
 export function getPracticeWrongQuestionIds(practice: PracticeState) {
   const results = practice.results ?? {};
   return practice.questionIds.filter((questionId) => results[questionId] === false);
+}
+
+export function reconcileMistakePractice(practice: PracticeState, deckQuestions: Question[]): PracticeState {
+  const questionIdsInDeck = new Set(deckQuestions.map((question) => question.id));
+  const questionIds = practice.questionIds.filter((questionId) => questionIdsInDeck.has(questionId));
+  const generatedOrders = buildPracticeOptionOrders(
+    deckQuestions.filter((question) => questionIds.includes(question.id)),
+    Boolean(practice.shuffleOptions)
+  );
+  const optionOrders = Object.fromEntries(questionIds.map((questionId) => [
+    questionId,
+    practice.optionOrders?.[questionId] ?? generatedOrders[questionId] ?? []
+  ]));
+  const answers = Object.fromEntries(Object.entries(practice.answers).filter(([questionId]) => questionIdsInDeck.has(questionId)));
+  const results = Object.fromEntries(Object.entries(practice.results ?? {}).filter(([questionId]) => questionIdsInDeck.has(questionId)));
+  const currentQuestionId = practice.questionIds[practice.currentIndex];
+  const retainedCurrentIndex = currentQuestionId ? questionIds.indexOf(currentQuestionId) : -1;
+  const currentIndex = retainedCurrentIndex >= 0
+    ? retainedCurrentIndex
+    : Math.max(0, Math.min(questionIds.length - 1, practice.currentIndex));
+
+  return {
+    ...practice,
+    scope: "mistakes",
+    questionIds,
+    currentIndex,
+    mode: "answer",
+    optionOrders,
+    answers,
+    results,
+    updatedAt: new Date().toISOString()
+  };
 }
 
 export function reconcileFavoritePractice(practice: PracticeState, questions: Question[]): PracticeState {

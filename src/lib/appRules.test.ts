@@ -14,8 +14,10 @@ import {
   isQuestionInHardDeck,
   normalizeDailyReviewSession,
   normalizeAppDataForCurrentRules,
+  reconcileMistakePractice,
   recordDailyStudyResult,
-  resetDeckProgressForDeck
+  resetDeckProgressForDeck,
+  shouldUsePersistentData
 } from "./appRules";
 import { emptyData } from "./storage";
 
@@ -78,6 +80,61 @@ describe("mistake exam rules", () => {
     expect(config.judgeCount).toBe(25);
     expect(config.singleCount).toBe(35);
     expect(config.multipleCount).toBe(22);
+  });
+
+  it("preserves unfinished mistake practice position when deck questions still exist", () => {
+    const questions = [makeQuestion("q1"), makeQuestion("q2"), makeQuestion("q3")];
+    const practice = {
+      deckId: "deck",
+      scope: "mistakes" as const,
+      questionIds: ["q1", "q2", "q_removed"],
+      currentIndex: 1,
+      mode: "answer" as const,
+      optionOrders: { q1: ["A", "B"], q2: ["B", "A"], q_removed: ["A", "B"] },
+      shuffleOptions: true,
+      shuffleQuestions: false,
+      autoAdvanceCorrect: true,
+      answers: { q1: ["A"], q2: ["B"], q_removed: ["A"] },
+      results: { q1: true, q_removed: false },
+      startedAt: "2026-06-28T10:00:00.000Z",
+      updatedAt: "2026-06-28T10:05:00.000Z"
+    };
+
+    const reconciled = reconcileMistakePractice(practice, questions);
+
+    expect(reconciled.questionIds).toEqual(["q1", "q2"]);
+    expect(reconciled.currentIndex).toBe(1);
+    expect(reconciled.answers).toEqual({ q1: ["A"], q2: ["B"] });
+    expect(reconciled.results).toEqual({ q1: true });
+    expect(reconciled.optionOrders?.q2).toEqual(["B", "A"]);
+  });
+});
+
+describe("persistent data selection", () => {
+  it("uses persistent data when it contains saved practice progress", () => {
+    const current: AppData = {
+      ...emptyData,
+      questions: [makeQuestion("q1")],
+      decks: [{ id: "deck", name: "题库", questionIds: ["q1"], createdAt: "2026-06-28T00:00:00.000Z", updatedAt: "2026-06-28T00:00:00.000Z" }]
+    };
+    const stored: AppData = {
+      ...current,
+      practices: {
+        "mistakes:deck": {
+          deckId: "deck",
+          scope: "mistakes",
+          questionIds: ["q1"],
+          currentIndex: 0,
+          mode: "answer",
+          answers: {},
+          results: {},
+          startedAt: "2026-06-28T10:00:00.000Z",
+          updatedAt: "2026-06-28T10:00:00.000Z"
+        }
+      }
+    };
+
+    expect(shouldUsePersistentData(stored, current)).toBe(true);
   });
 });
 

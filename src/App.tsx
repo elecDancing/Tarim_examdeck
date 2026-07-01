@@ -190,6 +190,7 @@ import {
   getMistakePracticeKey,
   buildMistakePractice,
   getPracticeWrongQuestionIds,
+  reconcileMistakePractice,
   reconcileFavoritePractice,
   buildPracticeQuestionIds,
   buildInterleavedPracticeQuestionIds,
@@ -741,6 +742,7 @@ function App() {
   const activePractice = currentPracticeStorageKey ? data.practices[currentPracticeStorageKey] : undefined;
   const activePracticeDeck = activeDeck ?? (activePractice?.scope === "favorites" ? { id: activePractice.deckId, name: "全部收藏题", questionIds: activePractice.questionIds, createdAt: activePractice.startedAt, updatedAt: activePractice.updatedAt } : null);
   const favoritePractice = data.practices[getFavoritePracticeKey(activeDeck?.id ?? ALL_FAVORITES_PRACTICE_DECK_ID)];
+  const mistakePractice = activeDeck ? data.practices[getMistakePracticeKey(activeDeck.id)] : undefined;
   const isAnsweringView = (view === "practice" && Boolean(activePractice && !activePractice.submittedAt)) || (view === "exam" && Boolean(activeSession && !activeSession.submittedAt)) || (view === "review" && Boolean(activeReviewSession));
   useAndroidLifecycle({ dataRef, view, activeDeckId, isAnsweringView, navOpen, answerProgressCollapsed, detailQuestionId, editingQuestionId, showCopyright, hasDeckActionDialog: Boolean(deckActionDialog), dailyReviewFinishDialogOpen, setNavOpen, setSidebarCollapsed, setAnswerProgressCollapsed, setDetailQuestionId, setEditingQuestionId, setShowCopyright, setDeckActionDialog, setDailyReviewFinishDialogOpen, setView, goHome, requestAnsweringLeave, setStatus });
   useAndroidAnswerSwipe({ isAnsweringView, view, activeSession, currentIndex, activeReviewSession, reviewIndex, activePractice, activeDeck: activePracticeDeck, questionById, goToExamIndex, goToReviewIndex, setPracticeIndex, confirmDailyReviewQuestion, confirmPracticeQuestion });
@@ -1084,7 +1086,7 @@ function App() {
     setStatus(`已生成 ${items.length} 道${statusLabel}`);
   }
 
-  function startMistakePractice(questionIds?: string[]) {
+  function startMistakePractice(questionIds?: string[], reset = false) {
     const snapshot = dataRef.current;
     const targetDeck = activeDeckId ? snapshot.decks.find((deck) => deck.id === activeDeckId) ?? null : null;
     if (!targetDeck) { setStatus("请先选择一个题库"); setView("home"); return; }
@@ -1102,10 +1104,28 @@ function App() {
     setPracticeShuffleQuestions(false);
     setPracticeAutoAdvanceCorrect(true);
     setMistakePracticeFinishDialogOpen(false);
+    const existingPractice = snapshot.practices[storageKey];
+    if (!questionIds && !reset && existingPractice?.scope === "mistakes" && !existingPractice.submittedAt) {
+      const reconciledPractice = reconcileMistakePractice(existingPractice, deckQuestions);
+      if (reconciledPractice.questionIds.length > 0) {
+        setPracticeShuffleOptions(Boolean(reconciledPractice.shuffleOptions));
+        setPracticeAutoAdvanceCorrect(reconciledPractice.autoAdvanceCorrect !== false);
+        setData((previous) => ({
+          ...previous,
+          practices: {
+            ...previous.practices,
+            [storageKey]: reconciledPractice
+          }
+        }));
+        setView("practice");
+        setStatus(`已恢复错题刷题进度，共 ${reconciledPractice.questionIds.length} 道`);
+        return;
+      }
+    }
     const practice = buildMistakePractice(targetDeck.id, questions, mistakeShuffleOptions, true);
     setData((previous) => ({ ...previous, practices: { ...previous.practices, [storageKey]: practice } }));
     setView("practice");
-    setStatus(`${questionIds ? "已继续" : "已开始"}错题刷题，共 ${questions.length} 道`);
+    setStatus(`${questionIds ? "已继续" : reset ? "已重新开始" : "已开始"}错题刷题，共 ${questions.length} 道`);
   }
 
   async function startQuickExam(deckId: string) {
@@ -2801,7 +2821,7 @@ function App() {
           stats={data.stats}
           questionById={questionById}
           startPractice={startPractice}
-          restartMistakePractice={() => startMistakePractice()}
+          restartMistakePractice={() => startMistakePractice(undefined, true)}
           practiceShuffleOptions={practiceShuffleOptions}
           setPracticeShuffleOptions={updatePracticeShuffleOptions}
           practiceShuffleQuestions={practiceShuffleQuestions}
@@ -2891,6 +2911,7 @@ function App() {
           editQuestion={setEditingQuestionId}
           mistakeShuffleOptions={mistakeShuffleOptions}
           setMistakeShuffleOptions={setMistakeShuffleOptions}
+          mistakePractice={mistakePractice}
           startMistakePractice={() => startMistakePractice()}
         />
       );
@@ -5030,6 +5051,7 @@ function Mistakes({
   editQuestion,
   mistakeShuffleOptions,
   setMistakeShuffleOptions,
+  mistakePractice,
   startMistakePractice
 }: {
   questions: Question[];
@@ -5039,8 +5061,11 @@ function Mistakes({
   editQuestion: (questionId: string) => void;
   mistakeShuffleOptions: boolean;
   setMistakeShuffleOptions: (value: boolean) => void;
+  mistakePractice?: PracticeState;
   startMistakePractice: () => void;
 }) {
+  const activeMistakePractice = mistakePractice?.scope === "mistakes" && !mistakePractice.submittedAt ? mistakePractice : null;
+  const mistakePracticeDoneCount = activeMistakePractice ? Object.keys(activeMistakePractice.results ?? {}).length : 0;
   return (
     <section className="page">
       <Header title="错题" subtitle={`${questions.length} 道`} />
@@ -5052,9 +5077,14 @@ function Mistakes({
           <input type="checkbox" checked={mistakeShuffleOptions} onChange={(event) => setMistakeShuffleOptions(event.target.checked)} />
           选项乱序
         </label>
+        {activeMistakePractice && (
+          <span className="toolbar-status">
+            错题刷题进度：{mistakePracticeDoneCount} / {activeMistakePractice.questionIds.length} 已判定，进入后从上次位置继续。
+          </span>
+        )}
         <button className="primary-button" onClick={startMistakePractice} disabled={questions.length === 0}>
           <RotateCcw size={18} />
-          开始错题刷题
+          {activeMistakePractice ? "继续错题刷题" : "开始错题刷题"}
         </button>
       </div>
       <div className="question-list">

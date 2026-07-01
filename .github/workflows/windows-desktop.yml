@@ -55,12 +55,10 @@ jobs:
             throw "makensis.exe was not found after installing NSIS"
           }
           & $makensis installer/windows/TarimExamdeck.nsi
-          $installer = Join-Path $env:GITHUB_WORKSPACE "release\塔里木刷题王-setup.exe"
           $artifact = Join-Path $env:GITHUB_WORKSPACE "release\tarim-examdeck-setup.exe"
-          if (-not (Test-Path -LiteralPath $installer)) {
-            throw "Windows installer was not generated at $installer"
+          if (-not (Test-Path -LiteralPath $artifact)) {
+            throw "Windows installer was not generated at $artifact"
           }
-          Copy-Item -LiteralPath $installer -Destination $artifact -Force
 
       - name: Upload installer
         uses: actions/upload-artifact@v5

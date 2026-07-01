@@ -41,6 +41,11 @@ try {
   $nsisScript = Join-Path $Root "installer\windows\TarimExamdeck.nsi"
   if ($makensis) {
     & $makensis.Source $nsisScript
+    $asciiInstaller = Join-Path $Release "tarim-examdeck-setup.exe"
+    $localizedInstaller = Join-Path $Release "塔里木刷题王-setup.exe"
+    if (Test-Path $asciiInstaller) {
+      Copy-Item -LiteralPath $asciiInstaller -Destination $localizedInstaller -Force
+    }
     Write-Host "已生成 NSIS 安装包：" (Join-Path $Release "塔里木刷题王-setup.exe")
   } elseif (Get-Command ISCC.exe -ErrorAction SilentlyContinue) {
     $iscc = Get-Command ISCC.exe

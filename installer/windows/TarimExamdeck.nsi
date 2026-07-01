@@ -8,7 +8,7 @@ Unicode true
 !define APP_DIR "TarimExamdeck"
 
 Name "${APP_NAME}"
-OutFile "..\..\release\塔里木刷题王-setup.exe"
+OutFile "..\..\release\tarim-examdeck-setup.exe"
 Icon "..\..\windows\Assets\AppIcon.ico"
 UninstallIcon "..\..\windows\Assets\AppIcon.ico"
 InstallDir "$LOCALAPPDATA\Programs\${APP_DIR}"

@@ -8,6 +8,7 @@ using System.IO;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -18,6 +19,8 @@ public partial class MainWindow : Window
     private const string AppHostName = "app.examdeck.local";
     private readonly Dictionary<string, NativeSaveSession> _saveSessions = new();
     private bool _flushBeforeCloseCompleted;
+    private bool _closeRequestInFlight;
+    private string? _pendingCloseRequestId;
 
     public MainWindow()
     {
@@ -30,16 +33,49 @@ public partial class MainWindow : Window
     {
         if (_flushBeforeCloseCompleted || Browser.CoreWebView2 is null) return;
         e.Cancel = true;
+        if (_closeRequestInFlight) return;
+        _closeRequestInFlight = true;
+        _pendingCloseRequestId = Guid.NewGuid().ToString("N");
         try
         {
-            await Browser.CoreWebView2.ExecuteScriptAsync("window.examdeckFlushData ? window.examdeckFlushData() : null");
-            await Task.Delay(350);
+            await Browser.CoreWebView2.ExecuteScriptAsync(
+                $"window.dispatchEvent(new CustomEvent('examdeck-native-close-request', {{ detail: {{ id: '{_pendingCloseRequestId}' }} }}));");
+            _ = CloseAfterTimeoutAsync(_pendingCloseRequestId);
+        }
+        catch
+        {
+            // Closing should continue even if the page is already gone.
+            await FlushAndCloseAsync();
+        }
+    }
+
+    private async Task CloseAfterTimeoutAsync(string requestId)
+    {
+        await Task.Delay(7000);
+        await Dispatcher.InvokeAsync(async () =>
+        {
+            if (_pendingCloseRequestId != requestId || !_closeRequestInFlight) return;
+            await FlushAndCloseAsync();
+        });
+    }
+
+    private async Task FlushAndCloseAsync()
+    {
+        try
+        {
+            if (Browser.CoreWebView2 is not null)
+            {
+                await Browser.CoreWebView2.ExecuteScriptAsync("window.examdeckFlushData ? window.examdeckFlushData() : null");
+                await Task.Delay(350);
+            }
         }
         catch
         {
             // Closing should continue even if the page is already gone.
         }
         _flushBeforeCloseCompleted = true;
+        _closeRequestInFlight = false;
+        _pendingCloseRequestId = null;
         Close();
     }
 
@@ -109,7 +145,18 @@ public partial class MainWindow : Window
         {
             using var document = JsonDocument.Parse(e.WebMessageAsJson);
             var root = document.RootElement;
-            if (!root.TryGetProperty("channel", out var channel) || channel.GetString() != "examdeckNativeSaveFile") return;
+            if (!root.TryGetProperty("channel", out var channel)) return;
+            if (channel.GetString() == "examdeckQuestionBankSync")
+            {
+                HandleQuestionBankSyncResult(root);
+                return;
+            }
+            if (channel.GetString() == "examdeckNativeClose")
+            {
+                HandleNativeCloseResult(root);
+                return;
+            }
+            if (channel.GetString() != "examdeckNativeSaveFile") return;
             if (!root.TryGetProperty("type", out var typeElement)) return;
             if (!root.TryGetProperty("request", out var request)) return;
             if (!request.TryGetProperty("id", out var idElement)) return;
@@ -135,6 +182,86 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(error.Message, "保存文件失败", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private void HandleQuestionBankSyncResult(JsonElement root)
+    {
+        if (!root.TryGetProperty("request", out var request)) return;
+        var id = request.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+        if (string.IsNullOrWhiteSpace(id) || !request.TryGetProperty("question", out var question)) return;
+
+        try
+        {
+            var path = UpdateCanonicalQuestionBank(question);
+            SendQuestionBankSyncResult(id, true, null, path);
+        }
+        catch (Exception error)
+        {
+            SendQuestionBankSyncResult(id, false, error.Message, null);
+        }
+    }
+
+    private static string UpdateCanonicalQuestionBank(JsonElement question)
+    {
+        var questionId = question.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+        if (string.IsNullOrWhiteSpace(questionId)) throw new InvalidOperationException("题目缺少 ID");
+
+        foreach (var path in CanonicalQuestionBankPaths())
+        {
+            if (!File.Exists(path)) continue;
+            var root = JsonNode.Parse(File.ReadAllText(path))?.AsObject();
+            if (root is null) continue;
+            var dataNode = root["data"]?.AsObject() ?? root;
+            var questions = dataNode["questions"]?.AsArray();
+            if (questions is null) continue;
+            for (var index = 0; index < questions.Count; index += 1)
+            {
+                if (questions[index]?["id"]?.GetValue<string>() != questionId) continue;
+                questions[index] = JsonNode.Parse(question.GetRawText());
+                File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                }));
+                return path;
+            }
+        }
+        throw new FileNotFoundException("未找到可写入的内置题库源文件");
+    }
+
+    private static IEnumerable<string> CanonicalQuestionBankPaths()
+    {
+        var envPath = Environment.GetEnvironmentVariable("EXAMDECK_CANONICAL_BANK_PATH");
+        if (!string.IsNullOrWhiteSpace(envPath)) yield return envPath;
+        yield return @"C:\Users\xuepengzhang\Documents\国赛测试\examdeck\public\bootstrap\progress.json";
+    }
+
+    private void SendQuestionBankSyncResult(string id, bool ok, string? message, string? path)
+    {
+        var detail = new Dictionary<string, object?>
+        {
+            ["id"] = id,
+            ["ok"] = ok
+        };
+        if (!string.IsNullOrWhiteSpace(message)) detail["message"] = message;
+        if (!string.IsNullOrWhiteSpace(path)) detail["path"] = path;
+        var json = JsonSerializer.Serialize(detail, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+        Browser.CoreWebView2?.ExecuteScriptAsync(
+            $"window.dispatchEvent(new CustomEvent('examdeck-question-bank-sync-result', {{ detail: {json} }}));");
+    }
+
+    private void HandleNativeCloseResult(JsonElement root)
+    {
+        if (!root.TryGetProperty("request", out var request)) return;
+        var id = request.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+        var allowClose = request.TryGetProperty("allowClose", out var allowElement) && allowElement.GetBoolean();
+        if (string.IsNullOrWhiteSpace(id) || id != _pendingCloseRequestId) return;
+
+        _closeRequestInFlight = false;
+        _pendingCloseRequestId = null;
+        if (!allowClose) return;
+        _flushBeforeCloseCompleted = true;
+        Close();
     }
 
     private void StartSaveSession(string id, JsonElement request)

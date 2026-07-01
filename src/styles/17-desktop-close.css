@@ -1,0 +1,69 @@
+.desktop-close-backdrop {
+  background: rgba(17, 24, 39, 0.28);
+  backdrop-filter: blur(14px);
+}
+
+.desktop-close-dialog {
+  width: min(460px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid rgba(224, 210, 177, 0.92);
+  border-radius: 22px;
+  background: rgba(255, 253, 248, 0.98);
+  box-shadow: 0 28px 80px rgba(16, 30, 48, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  animation: desktop-close-dialog-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.desktop-close-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.desktop-close-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #e9f6ff 0%, #cfeafe 100%);
+  color: #236a9c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
+}
+
+.desktop-close-header h2 {
+  margin: 3px 0 0;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.desktop-close-copy {
+  margin: 18px 0 20px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.7;
+}
+
+.desktop-close-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.desktop-close-actions button {
+  min-height: 46px;
+}
+
+@keyframes desktop-close-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

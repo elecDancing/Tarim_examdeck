@@ -64,11 +64,14 @@ private struct NativeSaveSession {
     var chunks: [Int: Data] = [:]
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
     private var window: NSWindow!
     private var webView: WKWebView!
     private var schemeHandler: AppSchemeHandler!
     private var nativeSaveSessions: [String: NativeSaveSession] = [:]
+    private var closeConfirmationPassed = false
+    private var pendingCloseRequestId: String?
+    private var pendingTerminateRequest = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -81,6 +84,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.userContentController.add(self, name: "examdeckNativeSaveFile")
+        configuration.userContentController.add(self, name: "examdeckNativeClose")
+        configuration.userContentController.add(self, name: "examdeckQuestionBankSync")
         schemeHandler = AppSchemeHandler(rootURL: distURL)
         configuration.setURLSchemeHandler(schemeHandler, forURLScheme: "examdeck")
 
@@ -98,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         window.center()
         window.title = "塔里木刷题王"
         window.minSize = NSSize(width: 1100, height: 720)
+        window.delegate = self
         window.contentView = webView
         window.makeKeyAndOrderFront(nil)
 
@@ -107,6 +113,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if closeConfirmationPassed {
+            return true
+        }
+        requestCloseConfirmation(terminateApp: false)
+        return false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if closeConfirmationPassed {
+            return .terminateNow
+        }
+        requestCloseConfirmation(terminateApp: true)
+        return .terminateLater
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -156,6 +178,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "examdeckQuestionBankSync" {
+            handleQuestionBankSyncMessage(message.body)
+            return
+        }
+        if message.name == "examdeckNativeClose" {
+            handleNativeCloseMessage(message.body)
+            return
+        }
         guard message.name == "examdeckNativeSaveFile",
               let body = message.body as? [String: Any],
               let type = body["type"] as? String,
@@ -205,6 +235,124 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             showSavePanel(id: id, fileName: session.fileName, data: fileData)
         default:
             break
+        }
+    }
+
+    private func handleQuestionBankSyncMessage(_ body: Any) {
+        guard let payload = body as? [String: Any],
+              let request = payload["request"] as? [String: Any],
+              let requestId = request["id"] as? String,
+              let question = request["question"] as? [String: Any] else {
+            return
+        }
+
+        do {
+            let path = try updateCanonicalQuestionBank(question: question)
+            sendQuestionBankSyncResult(id: requestId, ok: true, message: nil, path: path)
+        } catch {
+            sendQuestionBankSyncResult(id: requestId, ok: false, message: error.localizedDescription, path: nil)
+        }
+    }
+
+    private func updateCanonicalQuestionBank(question: [String: Any]) throws -> String {
+        guard let questionId = question["id"] as? String else {
+            throw NSError(domain: "TarimExamdeck", code: 422, userInfo: [NSLocalizedDescriptionKey: "题目缺少 ID"])
+        }
+        for url in canonicalQuestionBankURLs() where FileManager.default.fileExists(atPath: url.path) {
+            let fileData = try Data(contentsOf: url)
+            guard var root = try JSONSerialization.jsonObject(with: fileData) as? [String: Any] else {
+                continue
+            }
+            var dataNode = (root["data"] as? [String: Any]) ?? root
+            guard var questions = dataNode["questions"] as? [[String: Any]],
+                  let index = questions.firstIndex(where: { ($0["id"] as? String) == questionId }) else {
+                continue
+            }
+            questions[index] = question
+            dataNode["questions"] = questions
+            if root["data"] != nil {
+                root["data"] = dataNode
+            } else {
+                root = dataNode
+            }
+            let output = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted])
+            try output.write(to: url, options: .atomic)
+            return url.path
+        }
+        throw NSError(domain: "TarimExamdeck", code: 404, userInfo: [NSLocalizedDescriptionKey: "未找到可写入的内置题库源文件"])
+    }
+
+    private func canonicalQuestionBankURLs() -> [URL] {
+        var urls: [URL] = []
+        if let path = ProcessInfo.processInfo.environment["EXAMDECK_CANONICAL_BANK_PATH"], !path.isEmpty {
+            urls.append(URL(fileURLWithPath: path))
+        }
+        urls.append(URL(fileURLWithPath: "/Users/xuepengzhang/Documents/国赛测试/examdeck/public/bootstrap/progress.json"))
+        return urls
+    }
+
+    private func sendQuestionBankSyncResult(id: String, ok: Bool, message: String?, path: String?) {
+        var detail: [String: Any] = ["id": id, "ok": ok]
+        if let message { detail["message"] = message }
+        if let path { detail["path"] = path }
+        guard let data = try? JSONSerialization.data(withJSONObject: detail),
+              let json = String(data: data, encoding: .utf8) else {
+            return
+        }
+        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('examdeck-question-bank-sync-result', { detail: \(json) }))")
+    }
+
+    private func requestCloseConfirmation(terminateApp: Bool) {
+        if pendingCloseRequestId != nil {
+            return
+        }
+        let requestId = UUID().uuidString
+        pendingCloseRequestId = requestId
+        pendingTerminateRequest = terminateApp
+        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('examdeck-native-close-request', { detail: { id: '\(requestId)' } }))") { [weak self] _, error in
+            guard error != nil else { return }
+            self?.flushAndCloseAfterFailedRequest(requestId: requestId)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 7) { [weak self] in
+            self?.flushAndCloseAfterFailedRequest(requestId: requestId)
+        }
+    }
+
+    private func handleNativeCloseMessage(_ body: Any) {
+        guard let payload = body as? [String: Any],
+              let request = payload["request"] as? [String: Any],
+              let requestId = request["id"] as? String,
+              requestId == pendingCloseRequestId else {
+            return
+        }
+        let allowClose = request["allowClose"] as? Bool ?? false
+        completeCloseRequest(allowClose: allowClose)
+    }
+
+    private func flushAndCloseAfterFailedRequest(requestId: String) {
+        guard pendingCloseRequestId == requestId else {
+            return
+        }
+        webView.evaluateJavaScript("window.examdeckFlushData ? window.examdeckFlushData() : null") { [weak self] _, _ in
+            self?.completeCloseRequest(allowClose: true)
+        }
+    }
+
+    private func completeCloseRequest(allowClose: Bool) {
+        let shouldTerminate = pendingTerminateRequest
+        pendingCloseRequestId = nil
+        pendingTerminateRequest = false
+        if !allowClose {
+            if shouldTerminate {
+                NSApp.reply(toApplicationShouldTerminate: false)
+            }
+            return
+        }
+        closeConfirmationPassed = true
+        if shouldTerminate {
+            NSApp.reply(toApplicationShouldTerminate: true)
+        } else {
+            window.performClose(nil)
         }
     }
 

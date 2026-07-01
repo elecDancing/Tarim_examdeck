@@ -6,16 +6,17 @@ import { getPracticeWrongQuestionIds } from "../lib/appRules";
 type MistakePracticeFinishDialogProps = {
   practice: PracticeState;
   label: string;
+  excludedQuestionIds?: Set<string>;
   onContinueWrong: () => void;
   onExit: () => void;
   onClose: () => void;
 };
 
-export function MistakePracticeFinishDialog({ practice, label, onContinueWrong, onExit, onClose }: MistakePracticeFinishDialogProps) {
+export function MistakePracticeFinishDialog({ practice, label, excludedQuestionIds = new Set<string>(), onContinueWrong, onExit, onClose }: MistakePracticeFinishDialogProps) {
   const results = practice.results ?? {};
   const finishedCount = practice.questionIds.filter((questionId) => results[questionId] !== undefined).length;
   const correctCount = practice.questionIds.filter((questionId) => results[questionId] === true).length;
-  const wrongCount = getPracticeWrongQuestionIds(practice).length;
+  const wrongCount = getPracticeWrongQuestionIds(practice, excludedQuestionIds).length;
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {

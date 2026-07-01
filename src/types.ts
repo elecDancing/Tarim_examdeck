@@ -116,6 +116,7 @@ export type PracticeState = {
   scope?: "deck" | "favorites" | "mistakes";
   questionIds: string[];
   currentIndex: number;
+  pendingAutoAdvanceIndex?: number;
   reviewIndex?: number;
   mode?: PracticeMode;
   optionOrders?: Record<string, string[]>;

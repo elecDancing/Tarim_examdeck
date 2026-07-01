@@ -2,4 +2,5 @@
 
 interface Window {
   examdeckFlushData?: () => Promise<unknown> | unknown;
+  examdeckRequestClose?: () => Promise<boolean>;
 }

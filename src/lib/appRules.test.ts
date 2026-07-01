@@ -108,6 +108,48 @@ describe("mistake exam rules", () => {
     expect(reconciled.results).toEqual({ q1: true });
     expect(reconciled.optionOrders?.q2).toEqual(["B", "A"]);
   });
+
+  it("drops slashed questions when restoring mistake practice", () => {
+    const questions = [makeQuestion("q1"), makeQuestion("q2")];
+    const practice = {
+      deckId: "deck",
+      scope: "mistakes" as const,
+      questionIds: ["q1", "q2"],
+      currentIndex: 0,
+      mode: "answer" as const,
+      answers: { q1: ["B"], q2: ["B"] },
+      results: { q1: false, q2: false },
+      startedAt: "2026-06-28T10:00:00.000Z",
+      updatedAt: "2026-06-28T10:05:00.000Z"
+    };
+
+    const reconciled = reconcileMistakePractice(practice, questions, new Set(["q1"]));
+
+    expect(reconciled.questionIds).toEqual(["q2"]);
+    expect(reconciled.answers).toEqual({ q2: ["B"] });
+    expect(reconciled.results).toEqual({ q2: false });
+  });
+
+  it("resumes a pending auto-advanced mistake practice at the next question", () => {
+    const questions = [makeQuestion("q1"), makeQuestion("q2"), makeQuestion("q3")];
+    const practice = {
+      deckId: "deck",
+      scope: "mistakes" as const,
+      questionIds: ["q1", "q2", "q3"],
+      currentIndex: 0,
+      pendingAutoAdvanceIndex: 1,
+      mode: "answer" as const,
+      answers: { q1: ["A"] },
+      results: { q1: true },
+      startedAt: "2026-06-28T10:00:00.000Z",
+      updatedAt: "2026-06-28T10:05:00.000Z"
+    };
+
+    const reconciled = reconcileMistakePractice(practice, questions);
+
+    expect(reconciled.currentIndex).toBe(1);
+    expect(reconciled.pendingAutoAdvanceIndex).toBeUndefined();
+  });
 });
 
 describe("persistent data selection", () => {

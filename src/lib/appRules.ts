@@ -1809,35 +1809,37 @@ export function buildMistakePractice(deckId: string, questions: Question[], shuf
   };
 }
 
-export function getPracticeWrongQuestionIds(practice: PracticeState) {
+export function getPracticeWrongQuestionIds(practice: PracticeState, excludedQuestionIds = new Set<string>()) {
   const results = practice.results ?? {};
-  return practice.questionIds.filter((questionId) => results[questionId] === false);
+  return practice.questionIds.filter((questionId) => results[questionId] === false && !excludedQuestionIds.has(questionId));
 }
 
-export function reconcileMistakePractice(practice: PracticeState, deckQuestions: Question[]): PracticeState {
+export function reconcileMistakePractice(practice: PracticeState, deckQuestions: Question[], excludedQuestionIds = new Set<string>()): PracticeState {
   const questionIdsInDeck = new Set(deckQuestions.map((question) => question.id));
-  const questionIds = practice.questionIds.filter((questionId) => questionIdsInDeck.has(questionId));
+  const resolvedPractice = applyPendingPracticeAutoAdvance(practice);
+  const questionIds = resolvedPractice.questionIds.filter((questionId) => questionIdsInDeck.has(questionId) && !excludedQuestionIds.has(questionId));
   const generatedOrders = buildPracticeOptionOrders(
     deckQuestions.filter((question) => questionIds.includes(question.id)),
-    Boolean(practice.shuffleOptions)
+    Boolean(resolvedPractice.shuffleOptions)
   );
   const optionOrders = Object.fromEntries(questionIds.map((questionId) => [
     questionId,
-    practice.optionOrders?.[questionId] ?? generatedOrders[questionId] ?? []
+    resolvedPractice.optionOrders?.[questionId] ?? generatedOrders[questionId] ?? []
   ]));
-  const answers = Object.fromEntries(Object.entries(practice.answers).filter(([questionId]) => questionIdsInDeck.has(questionId)));
-  const results = Object.fromEntries(Object.entries(practice.results ?? {}).filter(([questionId]) => questionIdsInDeck.has(questionId)));
-  const currentQuestionId = practice.questionIds[practice.currentIndex];
+  const answers = Object.fromEntries(Object.entries(resolvedPractice.answers).filter(([questionId]) => questionIds.includes(questionId)));
+  const results = Object.fromEntries(Object.entries(resolvedPractice.results ?? {}).filter(([questionId]) => questionIds.includes(questionId)));
+  const currentQuestionId = resolvedPractice.questionIds[resolvedPractice.currentIndex];
   const retainedCurrentIndex = currentQuestionId ? questionIds.indexOf(currentQuestionId) : -1;
   const currentIndex = retainedCurrentIndex >= 0
     ? retainedCurrentIndex
-    : Math.max(0, Math.min(questionIds.length - 1, practice.currentIndex));
+    : Math.max(0, Math.min(questionIds.length - 1, resolvedPractice.currentIndex));
 
   return {
-    ...practice,
+    ...resolvedPractice,
     scope: "mistakes",
     questionIds,
     currentIndex,
+    pendingAutoAdvanceIndex: undefined,
     mode: "answer",
     optionOrders,
     answers,
@@ -1847,37 +1849,49 @@ export function reconcileMistakePractice(practice: PracticeState, deckQuestions:
 }
 
 export function reconcileFavoritePractice(practice: PracticeState, questions: Question[]): PracticeState {
+  const resolvedPractice = applyPendingPracticeAutoAdvance(practice);
   const currentIds = new Set(questions.map((question) => question.id));
-  const retainedIds = practice.questionIds.filter((questionId) => currentIds.has(questionId));
+  const retainedIds = resolvedPractice.questionIds.filter((questionId) => currentIds.has(questionId));
   const retainedSet = new Set(retainedIds);
   const questionIds = [
     ...retainedIds,
     ...questions.map((question) => question.id).filter((questionId) => !retainedSet.has(questionId))
   ];
-  const generatedOrders = buildPracticeOptionOrders(questions, Boolean(practice.shuffleOptions));
+  const generatedOrders = buildPracticeOptionOrders(questions, Boolean(resolvedPractice.shuffleOptions));
   const optionOrders = Object.fromEntries(questionIds.map((questionId) => [
     questionId,
-    practice.optionOrders?.[questionId] ?? generatedOrders[questionId] ?? []
+    resolvedPractice.optionOrders?.[questionId] ?? generatedOrders[questionId] ?? []
   ]));
-  const answers = Object.fromEntries(Object.entries(practice.answers).filter(([questionId]) => currentIds.has(questionId)));
-  const results = Object.fromEntries(Object.entries(practice.results ?? {}).filter(([questionId]) => currentIds.has(questionId)));
-  const currentQuestionId = practice.questionIds[practice.currentIndex];
+  const answers = Object.fromEntries(Object.entries(resolvedPractice.answers).filter(([questionId]) => currentIds.has(questionId)));
+  const results = Object.fromEntries(Object.entries(resolvedPractice.results ?? {}).filter(([questionId]) => currentIds.has(questionId)));
+  const currentQuestionId = resolvedPractice.questionIds[resolvedPractice.currentIndex];
   const retainedCurrentIndex = currentQuestionId ? questionIds.indexOf(currentQuestionId) : -1;
   const currentIndex = retainedCurrentIndex >= 0
     ? retainedCurrentIndex
-    : Math.max(0, Math.min(questionIds.length - 1, practice.currentIndex));
+    : Math.max(0, Math.min(questionIds.length - 1, resolvedPractice.currentIndex));
 
   return {
-    ...practice,
+    ...resolvedPractice,
     scope: "favorites",
     questionIds,
     currentIndex,
-    reviewIndex: practice.reviewIndex === undefined
+    pendingAutoAdvanceIndex: undefined,
+    reviewIndex: resolvedPractice.reviewIndex === undefined
       ? undefined
-      : Math.max(0, Math.min(questionIds.length - 1, practice.reviewIndex)),
+      : Math.max(0, Math.min(questionIds.length - 1, resolvedPractice.reviewIndex)),
     optionOrders,
     answers,
     results,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+export function applyPendingPracticeAutoAdvance(practice: PracticeState): PracticeState {
+  if (practice.pendingAutoAdvanceIndex === undefined || practice.questionIds.length === 0) return practice;
+  return {
+    ...practice,
+    currentIndex: Math.max(0, Math.min(practice.questionIds.length - 1, practice.pendingAutoAdvanceIndex)),
+    pendingAutoAdvanceIndex: undefined,
     updatedAt: new Date().toISOString()
   };
 }

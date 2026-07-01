@@ -4,6 +4,7 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import { CopyrightDialog } from "./components/CopyrightDialog";
 import { DailyReviewFinishDialog } from "./components/DailyReviewFinishDialog";
+import { DesktopCloseConfirmDialog } from "./components/DesktopCloseConfirmDialog";
 import { FeatureGuide } from "./components/FeatureGuide";
 import { MistakePracticeFinishDialog } from "./components/MistakePracticeFinishDialog";
 import { AnswerProgressDismissLayer, isAnswerProgressBlankTap, MobileNavDismissLayer } from "./components/AndroidInteractionLayers";
@@ -41,8 +42,10 @@ import { exportQuestionDecksToZip, exportQuestionsToExcel } from "./lib/excelExp
 import { extractEmbeddedImages, mergeQuestions, parseExcelFile, parseExcelWorkbook } from "./lib/excelImport";
 import { clearQuestionImages, importStoredQuestionImages, isStoredImageRef, resolveQuestionImageUrl } from "./lib/imageStore";
 import { emptyData, exportData, loadData, loadDataFromPersistentStorage, saveData } from "./lib/storage";
+import { syncEditedQuestionToCanonicalBank } from "./lib/questionBankSync";
 import { useAndroidLifecycle } from "./lib/androidLifecycle";
 import { useAndroidAnswerSwipe } from "./lib/androidAnswerSwipe";
+import { useDesktopCloseGuard } from "./lib/desktopCloseGuard";
 import { clearPersonalDataForInitialization, loadBootstrapSeedData, restoreSeedDecksFromBootstrap } from "./lib/softwareInitialization";
 import { scrollElementToTop, scrollWindowToTop } from "./lib/domScroll";
 import {
@@ -192,6 +195,7 @@ import {
   getPracticeWrongQuestionIds,
   reconcileMistakePractice,
   reconcileFavoritePractice,
+  applyPendingPracticeAutoAdvance,
   buildPracticeQuestionIds,
   buildInterleavedPracticeQuestionIds,
   buildSlashedPracticeAnswers,
@@ -744,6 +748,7 @@ function App() {
   const favoritePractice = data.practices[getFavoritePracticeKey(activeDeck?.id ?? ALL_FAVORITES_PRACTICE_DECK_ID)];
   const mistakePractice = activeDeck ? data.practices[getMistakePracticeKey(activeDeck.id)] : undefined;
   const isAnsweringView = (view === "practice" && Boolean(activePractice && !activePractice.submittedAt)) || (view === "exam" && Boolean(activeSession && !activeSession.submittedAt)) || (view === "review" && Boolean(activeReviewSession));
+  const desktopCloseGuard = useDesktopCloseGuard({ enabled: IS_WINDOWS || !IS_ANDROID_USER_AGENT, isAnsweringView, flushData: () => saveData(dataRef.current), setStatus });
   useAndroidLifecycle({ dataRef, view, activeDeckId, isAnsweringView, navOpen, answerProgressCollapsed, detailQuestionId, editingQuestionId, showCopyright, hasDeckActionDialog: Boolean(deckActionDialog), dailyReviewFinishDialogOpen, setNavOpen, setSidebarCollapsed, setAnswerProgressCollapsed, setDetailQuestionId, setEditingQuestionId, setShowCopyright, setDeckActionDialog, setDailyReviewFinishDialogOpen, setView, goHome, requestAnsweringLeave, setStatus });
   useAndroidAnswerSwipe({ isAnsweringView, view, activeSession, currentIndex, activeReviewSession, reviewIndex, activePractice, activeDeck: activePracticeDeck, questionById, goToExamIndex, goToReviewIndex, setPracticeIndex, confirmDailyReviewQuestion, confirmPracticeQuestion });
   const answeringEntryKey = view === "practice" && activePractice
@@ -1092,10 +1097,11 @@ function App() {
     if (!targetDeck) { setStatus("请先选择一个题库"); setView("home"); return; }
     const deckQuestions = getDeckQuestions(snapshot.questions, targetDeck);
     const byId = new Map(deckQuestions.map((question) => [question.id, question]));
+    const slashed = new Set(snapshot.slashedQuestionIds ?? []);
     const questions = (questionIds
-      ? questionIds.map((questionId) => byId.get(questionId)).filter((question): question is Question => Boolean(question))
-      : deckQuestions.filter((question) => isActiveMistake(snapshot.stats[question.id])).sort((a, b) => (snapshot.stats[b.id]?.wrong ?? 0) - (snapshot.stats[a.id]?.wrong ?? 0)));
-    if (questions.length === 0) { setStatus("当前题库暂无错题"); return; }
+      ? questionIds.map((questionId) => byId.get(questionId)).filter((question): question is Question => Boolean(question && !slashed.has(question.id)))
+      : deckQuestions.filter((question) => isActiveMistake(snapshot.stats[question.id]) && !slashed.has(question.id)).sort((a, b) => (snapshot.stats[b.id]?.wrong ?? 0) - (snapshot.stats[a.id]?.wrong ?? 0)));
+    if (questions.length === 0) { setStatus("当前题库暂无未斩错题"); return; }
     const storageKey = getMistakePracticeKey(targetDeck.id);
     clearAutoAdvanceTimers();
     setActiveDeckId(targetDeck.id);
@@ -1106,7 +1112,7 @@ function App() {
     setMistakePracticeFinishDialogOpen(false);
     const existingPractice = snapshot.practices[storageKey];
     if (!questionIds && !reset && existingPractice?.scope === "mistakes" && !existingPractice.submittedAt) {
-      const reconciledPractice = reconcileMistakePractice(existingPractice, deckQuestions);
+      const reconciledPractice = reconcileMistakePractice(existingPractice, deckQuestions, slashed);
       if (reconciledPractice.questionIds.length > 0) {
         setPracticeShuffleOptions(Boolean(reconciledPractice.shuffleOptions));
         setPracticeAutoAdvanceCorrect(reconciledPractice.autoAdvanceCorrect !== false);
@@ -2006,10 +2012,13 @@ function App() {
   }
 
   function saveQuestionEdit(updatedQuestion: Question) {
-    setData((previous) => ({
-      ...previous,
-      questions: previous.questions.map((question) => question.id === updatedQuestion.id ? updatedQuestion : question)
-    }));
+    setData((previous) => {
+      const nextData = { ...previous, questions: previous.questions.map((question) => question.id === updatedQuestion.id ? updatedQuestion : question) };
+      dataRef.current = nextData;
+      void saveData(nextData);
+      if (!DISABLE_QUESTION_BANK_EXPORT) void syncEditedQuestionToCanonicalBank(updatedQuestion).then((result) => { if (!result.skipped) setStatus(result.ok ? "题目已更新，并已写回内置题库源" : `题目已更新；题库源写回失败：${result.message ?? "未知错误"}`); });
+      return nextData;
+    });
     setEditingQuestionId(null);
     setStatus("题目已更新");
   }
@@ -2290,6 +2299,7 @@ function App() {
     const resolvedShuffleQuestions = isHardDeck ? false : shuffleQuestions;
     const existingPractice = data.practices[activeDeck.id];
     if (!reset && existingPractice && !existingPractice.submittedAt) {
+      const resumedPractice = applyPendingPracticeAutoAdvance(existingPractice);
       setPracticeShuffleOptions(isHardDeck ? false : Boolean(existingPractice.shuffleOptions));
       setPracticeShuffleQuestions(isHardDeck ? false : Boolean(existingPractice.shuffleQuestions));
       setPracticeAutoAdvanceCorrect(existingPractice.autoAdvanceCorrect !== false);
@@ -2300,9 +2310,9 @@ function App() {
           return {
             ...previous,
             practices: {
-              ...previous.practices,
-              [activeDeck.id]: {
-                ...practice,
+            ...previous.practices,
+            [activeDeck.id]: {
+                ...applyPendingPracticeAutoAdvance(practice),
                 mode: "answer",
                 shuffleOptions: false,
                 shuffleQuestions: false,
@@ -2311,6 +2321,8 @@ function App() {
             }
           };
         });
+      } else if (resumedPractice !== existingPractice) {
+        setData((previous) => ({ ...previous, practices: { ...previous.practices, [activeDeck.id]: resumedPractice } }));
       }
       setView("practice");
       setStatus(isHardDeck ? "已进入重难题顺序刷题" : "已进入顺序刷题");
@@ -2389,28 +2401,18 @@ function App() {
     }, 500);
   }
 
-  function schedulePracticeAutoAdvance(storageKey: string, questionId: string, nextIndex: number) {
+  function schedulePracticeAutoAdvance(storageKey: string, questionId: string, fromIndex: number, nextIndex: number) {
     clearPracticeAutoAdvance();
+    const update = (previous: AppData, commit = false) => {
+      const practice = previous.practices[storageKey];
+      if (!practice || practice.submittedAt || practice.questionIds[fromIndex] !== questionId) return previous;
+      const boundedIndex = Math.max(0, Math.min(practice.questionIds.length - 1, nextIndex));
+      return { ...previous, practices: { ...previous.practices, [storageKey]: { ...practice, pendingAutoAdvanceIndex: commit ? undefined : boundedIndex, ...(commit ? { currentIndex: boundedIndex } : {}), updatedAt: new Date().toISOString() } } };
+    };
+    setData((previous) => { const next = update(previous); dataRef.current = next; return next; });
     practiceAutoAdvanceTimer.current = window.setTimeout(() => {
       practiceAutoAdvanceTimer.current = null;
-      setData((previous) => {
-        const practice = previous.practices[storageKey];
-        const deck = previous.decks.find((deck) => deck.id === practice?.deckId) ?? null;
-        if (!practice || practice.submittedAt || (practice.scope !== "mistakes" && !isHardQuestionDeck(deck) && getPracticeMode(practice) === "review")) return previous;
-        if (practice.questionIds[practice.currentIndex] !== questionId) return previous;
-        const boundedIndex = Math.max(0, Math.min(practice.questionIds.length - 1, nextIndex));
-        return {
-          ...previous,
-          practices: {
-            ...previous.practices,
-            [storageKey]: {
-              ...practice,
-              currentIndex: boundedIndex,
-              updatedAt: new Date().toISOString()
-            }
-          }
-        };
-      });
+      setData((previous) => { const next = update(previous, true); dataRef.current = next; return next; });
     }, 500);
   }
 
@@ -2429,6 +2431,7 @@ function App() {
           [currentPracticeStorageKey]: {
             ...practice,
             ...(mode === "review" ? { reviewIndex: boundedIndex } : { currentIndex: boundedIndex }),
+            pendingAutoAdvanceIndex: undefined,
             updatedAt: new Date().toISOString()
           }
         }
@@ -2528,9 +2531,7 @@ function App() {
     if (shouldShowHardQuestionClear) {
       showHardQuestionClearAnimation(questionId);
     }
-    if (shouldAdvance) {
-      schedulePracticeAutoAdvance(currentPracticeStorageKey, questionId, activePractice.currentIndex + 1);
-    }
+    if (shouldAdvance) schedulePracticeAutoAdvance(currentPracticeStorageKey, questionId, activePractice.currentIndex, activePractice.currentIndex + 1);
   }
 
   function confirmPracticeQuestion() {
@@ -2576,9 +2577,7 @@ function App() {
     if (shouldShowHardQuestionClear) {
       showHardQuestionClearAnimation(questionId);
     }
-    if (shouldAdvance) {
-      schedulePracticeAutoAdvance(currentPracticeStorageKey, questionId, activePractice.currentIndex + 1);
-    }
+    if (shouldAdvance) schedulePracticeAutoAdvance(currentPracticeStorageKey, questionId, activePractice.currentIndex, activePractice.currentIndex + 1);
   }
 
   async function submitPractice() {
@@ -2610,7 +2609,8 @@ function App() {
     const results = activePractice.results ?? {};
     const correct = Object.values(results).filter(Boolean).length;
     const total = activePractice.questionIds.length;
-    const wrongQuestionIds = activePractice.questionIds.filter((questionId) => results[questionId] === false);
+    const slashedForRequeue = new Set(dataRef.current.slashedQuestionIds ?? []);
+    const wrongQuestionIds = activePractice.questionIds.filter((questionId) => results[questionId] === false && !slashedForRequeue.has(questionId));
     const score = Math.round((correct / Math.max(1, total)) * 1000) / 10;
     setData((previous) => ({
       ...previous,
@@ -2661,7 +2661,7 @@ function App() {
 
   function continuePracticeFromWrong() {
     if (!activePractice || (activePractice.scope !== "mistakes" && activePractice.scope !== "favorites")) return;
-    const scope = activePractice.scope, questionIds = getPracticeWrongQuestionIds(activePractice);
+    const scope = activePractice.scope, questionIds = getPracticeWrongQuestionIds(activePractice, new Set(dataRef.current.slashedQuestionIds ?? []));
     if (questionIds.length === 0) { setStatus("本轮没有需要继续刷的错题"); return; }
     if (scope === "favorites") startFavoritePractice(true, questionIds);
     else startMistakePractice(questionIds);
@@ -3063,6 +3063,7 @@ function App() {
         <MistakePracticeFinishDialog
           practice={activePractice}
           label={activePractice.scope === "favorites" ? "收藏刷题" : "错题刷题"}
+          excludedQuestionIds={slashedQuestionSet}
           onContinueWrong={continuePracticeFromWrong}
           onExit={exitPracticeFinish}
           onClose={() => setMistakePracticeFinishDialogOpen(false)}
@@ -3104,6 +3105,7 @@ function App() {
           shortcutModifierLabel={SHORTCUT_MODIFIER_LABEL}
         />
       )}
+      {desktopCloseGuard.open && <DesktopCloseConfirmDialog onSaveAndQuit={desktopCloseGuard.saveAndQuit} onCancel={desktopCloseGuard.cancelClose} />}
     </div>
   );
 }

@@ -47,7 +47,6 @@ const SWIPE_TAP_MAX_MOVE_PX = 9;
 const SWIPE_MAX_DRAG_PX = 196;
 const SWIPE_RESET_MS = 220;
 const SWIPE_COMMIT_MS = 155;
-const SWIPE_ENTER_MS = 210;
 const SWIPE_TAP_DEBOUNCE_MS = 220;
 
 function getSwipeStage() {
@@ -85,8 +84,6 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     let lastTapNavigateAt = 0;
     let resetTimer: number | undefined;
     let commitTimer: number | undefined;
-    let enterTimer: number | undefined;
-    let enterFrame: number | undefined;
 
     const goPrevious = () => {
       const {
@@ -183,23 +180,15 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     const clearSwipeTimers = () => {
       if (resetTimer) window.clearTimeout(resetTimer);
       if (commitTimer) window.clearTimeout(commitTimer);
-      if (enterTimer) window.clearTimeout(enterTimer);
-      if (enterFrame) window.cancelAnimationFrame(enterFrame);
       resetTimer = undefined;
       commitTimer = undefined;
-      enterTimer = undefined;
-      enterFrame = undefined;
     };
 
     const resetStage = () => {
       const stage = getSwipeStage();
       if (!stage) return;
       if (resetTimer) window.clearTimeout(resetTimer);
-      if (enterTimer) window.clearTimeout(enterTimer);
-      if (enterFrame) window.cancelAnimationFrame(enterFrame);
-      enterTimer = undefined;
-      enterFrame = undefined;
-      stage.classList.remove("android-swiping", "android-swipe-committing", "android-swipe-edge", "android-swipe-enter-prepare", "android-swipe-entering", "android-swipe-enter-prev", "android-swipe-enter-next");
+      stage.classList.remove("android-swiping", "android-swipe-committing", "android-swipe-edge");
       stage.classList.add("android-swipe-resetting");
       setStageVars(stage, 0, 0);
       resetTimer = window.setTimeout(() => {
@@ -249,24 +238,9 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
           return;
         }
         const currentStage = getSwipeStage();
-        if (!currentStage) {
-          committedSwipe = false;
-          return;
-        }
-        currentStage.classList.remove("android-swipe-committing", "android-swipe-prev", "android-swipe-next");
-        currentStage.style.setProperty("--android-swipe-enter-x", direction === "next" ? "100vw" : "-100vw");
-        setStageVars(currentStage, 0, 0);
-        currentStage.classList.add("android-swipe-enter-prepare", direction === "next" ? "android-swipe-enter-next" : "android-swipe-enter-prev");
-        enterFrame = window.requestAnimationFrame(() => {
-          currentStage.classList.remove("android-swipe-enter-prepare");
-          currentStage.classList.add("android-swipe-entering");
-          enterTimer = window.setTimeout(() => {
-            currentStage.classList.remove("android-swipe-entering", "android-swipe-enter-prev", "android-swipe-enter-next");
-            committedSwipe = false;
-            enterTimer = undefined;
-          }, SWIPE_ENTER_MS);
-          enterFrame = undefined;
-        });
+        currentStage?.classList.remove("android-swiping", "android-swipe-resetting", "android-swipe-committing", "android-swipe-prev", "android-swipe-next", "android-swipe-edge");
+        if (currentStage) setStageVars(currentStage, 0, 0);
+        committedSwipe = false;
       }, SWIPE_COMMIT_MS);
       return true;
     };
@@ -466,7 +440,7 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
       clearSwipeTimers();
       const stage = getSwipeStage();
       if (stage) {
-        stage.classList.remove("android-swiping", "android-swipe-resetting", "android-swipe-committing", "android-swipe-prev", "android-swipe-next", "android-swipe-edge", "android-swipe-enter-prepare", "android-swipe-entering", "android-swipe-enter-prev", "android-swipe-enter-next");
+        stage.classList.remove("android-swiping", "android-swipe-resetting", "android-swipe-committing", "android-swipe-prev", "android-swipe-next", "android-swipe-edge");
         setStageVars(stage, 0, 0);
       }
     };
@@ -476,7 +450,7 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     if (options.isAnsweringView) return;
     const stage = getSwipeStage();
     if (!stage) return;
-    stage.classList.remove("android-swiping", "android-swipe-resetting", "android-swipe-committing", "android-swipe-prev", "android-swipe-next", "android-swipe-edge", "android-swipe-enter-prepare", "android-swipe-entering", "android-swipe-enter-prev", "android-swipe-enter-next");
+    stage.classList.remove("android-swiping", "android-swipe-resetting", "android-swipe-committing", "android-swipe-prev", "android-swipe-next", "android-swipe-edge");
     setStageVars(stage, 0, 0);
   }, [options.isAnsweringView]);
 }

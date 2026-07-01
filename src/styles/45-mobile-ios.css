@@ -766,21 +766,25 @@
     transform: none;
   }
 
-  .native-android .android-question-swipe-stage { position: relative; display: block; --android-swipe-x: 0px; --android-swipe-enter-x: 100vw; overflow: visible; }
+  .native-android .android-question-swipe-stage { position: relative; display: block; --android-swipe-x: 0px; overflow: hidden; border-radius: 30px; }
   .native-android .android-question-swipe-current { position: relative; z-index: 2; display: block; transform: none; transition: none; will-change: auto; }
   .native-android .android-question-swipe-stage.android-swiping .android-question-swipe-current,
   .native-android .android-question-swipe-stage.android-swipe-resetting .android-question-swipe-current,
-  .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-current,
-  .native-android .android-question-swipe-stage.android-swipe-enter-prepare .android-question-swipe-current { transform: translate3d(var(--android-swipe-x), 0, 0); will-change: transform; }
+  .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-current { transform: translate3d(var(--android-swipe-x), 0, 0); will-change: transform; }
   .native-android .android-question-swipe-stage.android-swiping .android-question-swipe-current { transition: none; }
   .native-android .android-question-swipe-stage.android-swipe-resetting .android-question-swipe-current { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
   .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-current { transition: transform 155ms cubic-bezier(0.32, 0.72, 0, 1); }
-  .native-android .android-question-swipe-stage.android-swipe-enter-prepare .android-question-swipe-current { --android-swipe-x: var(--android-swipe-enter-x); transition: none; }
-  .native-android .android-question-swipe-stage.android-swipe-entering .android-question-swipe-current { animation: android-question-enter 210ms cubic-bezier(0.22, 1, 0.36, 1) both; will-change: transform; }
-  @keyframes android-question-enter {
-    from { transform: translate3d(var(--android-swipe-enter-x), 0, 0); opacity: 0.96; }
-    to { transform: translate3d(0, 0, 0); opacity: 1; }
-  }
+  .native-android .android-question-swipe-preview { position: absolute; inset: 0; z-index: 1; display: block; pointer-events: none; opacity: 0; transform: translate3d(0, 0, 0); will-change: transform, opacity; }
+  .native-android .android-question-swipe-preview .question-panel { margin: 0; }
+  .native-android .android-question-swipe-preview-card { min-height: 100%; }
+  .native-android .android-swipe-empty-text { margin: 0; padding: 42px 16px; color: var(--muted); font-size: 16px; font-weight: 900; text-align: center; }
+  .native-android .android-question-swipe-stage.android-swipe-next .android-question-swipe-preview-next,
+  .native-android .android-question-swipe-stage.android-swipe-prev .android-question-swipe-preview-prev { opacity: 1; }
+  .native-android .android-question-swipe-stage.android-swipe-next .android-question-swipe-preview-next { transform: translate3d(calc(100vw + var(--android-swipe-x)), 0, 0); }
+  .native-android .android-question-swipe-stage.android-swipe-prev .android-question-swipe-preview-prev { transform: translate3d(calc(-100vw + var(--android-swipe-x)), 0, 0); }
+  .native-android .android-question-swipe-stage.android-swiping .android-question-swipe-preview { transition: none; }
+  .native-android .android-question-swipe-stage.android-swipe-resetting .android-question-swipe-preview { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease; }
+  .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-preview { transition: transform 155ms cubic-bezier(0.32, 0.72, 0, 1), opacity 120ms ease; }
 
   .native-android .question-panel,
   .native-android .app-shell.sidebar-collapsed .question-panel { padding: 18px 16px 20px; border-radius: 28px; box-shadow: none; outline: 1px solid rgba(228, 217, 189, 0.64); }
@@ -921,9 +925,7 @@
     font-size: 15px;
   }
 
-  .native-android .shortcut-list {
-    display: none;
-  }
+  .native-android .shortcut-list { display: grid; gap: 8px; }
 
   .native-android .support-qr-card {
     min-height: 0;
@@ -938,7 +940,7 @@
     inset: 0;
     z-index: 200;
     display: grid;
-    place-items: end center;
+    place-items: center;
     padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
     background: rgba(10, 18, 28, 0.26);
     backdrop-filter: blur(10px);
@@ -1000,6 +1002,9 @@
     grid-template-columns: 1fr 1fr;
     gap: 10px;
   }
+  .android-submit-summary-actions.single { grid-template-columns: 1fr; }
+  .android-confirm-dialog { max-width: 360px; }
+  .android-confirm-message { color: var(--ink); font-size: 18px; line-height: 1.55; }
 
   .android-submit-summary-dialog p {
     margin: 0;

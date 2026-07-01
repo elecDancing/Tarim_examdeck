@@ -4,6 +4,7 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import { CopyrightDialog } from "./components/CopyrightDialog";
 import { DailyReviewFinishDialog } from "./components/DailyReviewFinishDialog";
+import { FeatureGuide } from "./components/FeatureGuide";
 import { MistakePracticeFinishDialog } from "./components/MistakePracticeFinishDialog";
 import { AnswerProgressDismissLayer, isAnswerProgressBlankTap, MobileNavDismissLayer } from "./components/AndroidInteractionLayers";
 import { AnswerNavToggle, AnswerProgressToggle, RecentSessions, ResultSummary } from "./components/AnswerNavigation";
@@ -208,7 +209,7 @@ import type { DailyReviewSummary, ReviewForecastDay } from "./lib/appRules";
 
 type View = "home" | "dashboard" | "review" | "practice" | "exam" | "bank" | "mistakes" | "stats" | "favorites" | "slashedList" | "dailySummary" | "import" | "export" | "settings";
 
-
+const ALL_FAVORITES_PRACTICE_DECK_ID = "__all_favorites__";
 type QuestionSetFocus = {
   title: string;
   questionIds: string[];
@@ -429,6 +430,13 @@ function App() {
   const previousHardQuestionIds = useRef(new Set(data.decks.find((deck) => deck.id === HARD_QUESTION_DECK_ID)?.questionIds ?? []));
   const manualSlashQuestionIds = useRef(new Set<string>());
   const manualHardQuestionIds = useRef(new Set<string>());
+
+  async function confirmAction(title: string, message: string, confirmLabel = "确认", danger = false) {
+    if (!document.documentElement.classList.contains("native-android")) return globalThis.navigator?.userAgent.includes("jsdom") ? true : window.confirm(message) !== false;
+    const { showAndroidConfirmDialog } = await import("./lib/androidSubmitSummary");
+    return showAndroidConfirmDialog({ title, message, confirmLabel, danger });
+  }
+
   useEffect(() => {
     if (!persistentStorageChecked || !bootstrapProgressChecked) return;
     const timer = window.setTimeout(() => {
@@ -735,14 +743,11 @@ function App() {
   );
   const currentPracticeStorageKey = activePracticeStorageKey ?? activeDeck?.id ?? null;
   const activePractice = currentPracticeStorageKey ? data.practices[currentPracticeStorageKey] : undefined;
-  const favoritePractice = activeDeck ? data.practices[getFavoritePracticeKey(activeDeck.id)] : undefined;
-  const mistakePractice = activeDeck ? data.practices[getMistakePracticeKey(activeDeck.id)] : undefined;
-  const isAnsweringView =
-    (view === "practice" && Boolean(activePractice && !activePractice.submittedAt)) ||
-    (view === "exam" && Boolean(activeSession && !activeSession.submittedAt)) ||
-    (view === "review" && Boolean(activeReviewSession));
+  const activePracticeDeck = activeDeck ?? (activePractice?.scope === "favorites" ? { id: activePractice.deckId, name: "全部收藏题", questionIds: activePractice.questionIds, createdAt: activePractice.startedAt, updatedAt: activePractice.updatedAt } : null);
+  const favoritePractice = data.practices[getFavoritePracticeKey(activeDeck?.id ?? ALL_FAVORITES_PRACTICE_DECK_ID)];
+  const isAnsweringView = (view === "practice" && Boolean(activePractice && !activePractice.submittedAt)) || (view === "exam" && Boolean(activeSession && !activeSession.submittedAt)) || (view === "review" && Boolean(activeReviewSession));
   useAndroidLifecycle({ dataRef, view, activeDeckId, isAnsweringView, navOpen, answerProgressCollapsed, detailQuestionId, editingQuestionId, showCopyright, hasDeckActionDialog: Boolean(deckActionDialog), dailyReviewFinishDialogOpen, setNavOpen, setSidebarCollapsed, setAnswerProgressCollapsed, setDetailQuestionId, setEditingQuestionId, setShowCopyright, setDeckActionDialog, setDailyReviewFinishDialogOpen, setView, goHome, requestAnsweringLeave, setStatus });
-  useAndroidAnswerSwipe({ isAnsweringView, view, activeSession, currentIndex, activeReviewSession, reviewIndex, activePractice, activeDeck, questionById, goToExamIndex, goToReviewIndex, setPracticeIndex, confirmDailyReviewQuestion, confirmPracticeQuestion });
+  useAndroidAnswerSwipe({ isAnsweringView, view, activeSession, currentIndex, activeReviewSession, reviewIndex, activePractice, activeDeck: activePracticeDeck, questionById, goToExamIndex, goToReviewIndex, setPracticeIndex, confirmDailyReviewQuestion, confirmPracticeQuestion });
   const answeringEntryKey = view === "practice" && activePractice
     ? `${view}:${activePractice.startedAt}`
     : view === "exam" && activeSession
@@ -1060,13 +1065,13 @@ function App() {
     }
   }
 
-  function startExam(nextConfig = config, questionPool: Question[] = activeQuestions, stats: AppData["stats"] = data.stats, targetDeck: Deck | null = activeDeck, statusLabel = "题") {
+  async function startExam(nextConfig = config, questionPool: Question[] = activeQuestions, stats: AppData["stats"] = data.stats, targetDeck: Deck | null = activeDeck, statusLabel = "题") {
     if (!targetDeck) {
       setStatus("请先选择一个题库");
       setView("home");
       return;
     }
-    if (!confirmReplaceActiveExam()) return;
+    if (!await confirmReplaceActiveExam()) return;
     clearAutoAdvanceTimers();
     const items = buildExamItems(questionPool, stats, nextConfig);
     if (items.length === 0) {
@@ -1107,7 +1112,7 @@ function App() {
     setStatus(`${questionIds ? "已继续" : "已开始"}错题刷题，共 ${questions.length} 道`);
   }
 
-  function startQuickExam(deckId: string) {
+  async function startQuickExam(deckId: string) {
     const deck = data.decks.find((deck) => deck.id === deckId);
     if (!deck) {
       setStatus("没有找到题库");
@@ -1123,7 +1128,7 @@ function App() {
       return;
     }
 
-    if (!confirmReplaceActiveExam()) return;
+    if (!await confirmReplaceActiveExam()) return;
 
     setActiveDeckId(deck.id);
     setActivePracticeStorageKey(deck.id);
@@ -1156,10 +1161,10 @@ function App() {
     setStatus("已恢复未交卷的模拟考试");
   }
 
-  function confirmReplaceActiveExam() {
+  async function confirmReplaceActiveExam() {
     if (!activeSession || activeSession.submittedAt) return true;
     const answered = activeSession.items.filter((item) => item.selectedKeys.length > 0).length;
-    const shouldReplace = window.confirm(`当前还有一场未交卷的模拟考试，已作答 ${answered}/${activeSession.items.length} 题。要放弃这场考试并重新组卷吗？`);
+    const shouldReplace = await confirmAction("放弃当前考试？", `当前还有一场未交卷的模拟考试，已作答 ${answered}/${activeSession.items.length} 题。要放弃这场考试并重新组卷吗？`, "重新组卷", true);
     if (!shouldReplace) {
       resumeActiveExam(activeSession);
       return false;
@@ -1518,7 +1523,7 @@ function App() {
   }
 
   async function resetStats() {
-    if (!window.confirm("软件初始化会清空所有个人学习数据，并恢复内置固定题库；自定义题库会保留。继续吗？")) return;
+    if (!await confirmAction("初始化软件？", "软件初始化会清空所有个人学习数据，并恢复内置固定题库；自定义题库会保留。继续吗？", "初始化", true)) return;
     clearAutoAdvanceTimers();
     setStatus("正在初始化软件");
     const baseData = clearPersonalDataForInitialization(dataRef.current);
@@ -1550,8 +1555,8 @@ function App() {
     );
   }
 
-  function resetAll() {
-    if (!window.confirm("清空题库、统计和导入状态？")) return;
+  async function resetAll() {
+    if (!await confirmAction("清空所有数据？", "清空题库、统计和导入状态？", "清空", true)) return;
     void clearQuestionImages();
     clearAutoAdvanceTimers();
     dataRef.current = emptyData; setData(emptyData); void saveData(emptyData);
@@ -1611,12 +1616,12 @@ function App() {
     setDeckActionDialog({ kind: "removePlan", deckId });
   }
 
-  function toggleStudyPlanDeck(deckId: string) {
+  async function toggleStudyPlanDeck(deckId: string) {
     const deck = dataRef.current.decks.find((item) => item.id === deckId);
     if (!deck || isHardQuestionDeck(deck) || isAllDailyReviewDeck(deck)) return;
     const isAlreadyPlanned = (dataRef.current.studyPlanDeckIds ?? []).includes(deckId);
     if (isAlreadyPlanned) return;
-    if (document.documentElement.classList.contains("native-android") && !window.confirm(`将「${deck.name}」加入学习计划？`)) return;
+    if (!await confirmAction("加入学习计划", `将「${deck.name}」加入学习计划？`, "加入")) return;
     setData((previous) => {
       const currentIds = previous.studyPlanDeckIds ?? [];
       return normalizeAppDataForCurrentRules({
@@ -1927,7 +1932,7 @@ function App() {
       const restoredData = normalizeAppDataForCurrentRules(parseProgressBackup(raw));
       const restoredActiveSession = getRestorableActiveSession(restoredData.activeSession, restoredData);
       const restoredReviewSession = getInitialDailyReviewSession(restoredData, getDailySummaryDateKey(new Date()));
-      if (!window.confirm("导入学习进度会覆盖当前本机题库、统计、复习进度、笔记、收藏和已斩题目，确认继续？")) {
+      if (!await confirmAction("导入学习进度？", "导入学习进度会覆盖当前本机题库、统计、复习进度、笔记、收藏和已斩题目，确认继续？", "导入", true)) {
         setStatus("已取消导入学习进度");
         return;
       }
@@ -2194,21 +2199,19 @@ function App() {
     updatePracticeSettings({ autoAdvanceCorrect: value });
   }
 
-  function startFavoritePractice(reset = false) {
-    if (!activeDeck || scopedFavoriteQuestions.length === 0) {
-      setStatus("当前题库暂无收藏题");
-      return;
-    }
-
+  function startFavoritePractice(reset = false, questionIds?: string[]) {
+    const sourceQuestions = questionIds ? questionIds.map((questionId) => questionById.get(questionId)).filter((question): question is Question => Boolean(question)) : scopedFavoriteQuestions;
+    if (sourceQuestions.length === 0) { setStatus(activeDeck ? "当前题库暂无收藏题" : "暂无收藏题"); return; }
     clearAutoAdvanceTimers();
-    const storageKey = getFavoritePracticeKey(activeDeck.id);
+    const targetDeck = activeDeck ?? { id: ALL_FAVORITES_PRACTICE_DECK_ID, name: "全部收藏题", questionIds: sourceQuestions.map((question) => question.id), createdAt: "", updatedAt: "" };
+    const storageKey = getFavoritePracticeKey(targetDeck.id);
     const existingPractice = data.practices[storageKey];
+    setActiveDeckId(activeDeck?.id ?? null);
     setActivePracticeStorageKey(storageKey);
     setPracticeShuffleOptions(false);
     setPracticeShuffleQuestions(false);
     setPracticeAutoAdvanceCorrect(existingPractice?.autoAdvanceCorrect !== false);
-
-    if (!reset && existingPractice && !existingPractice.submittedAt) {
+    if (!questionIds && !reset && existingPractice && !existingPractice.submittedAt) {
       setData((previous) => {
         const existing = previous.practices[storageKey];
         if (!existing || existing.submittedAt) return previous;
@@ -2216,27 +2219,26 @@ function App() {
           ...previous,
           practices: {
             ...previous.practices,
-            [storageKey]: reconcileFavoritePractice(existing, scopedFavoriteQuestions)
+            [storageKey]: reconcileFavoritePractice(existing, sourceQuestions)
           }
         };
       });
       setView("practice");
-      setStatus(`已恢复收藏刷题进度，共 ${scopedFavoriteQuestions.length} 道`);
+      setStatus(`已恢复收藏刷题进度，共 ${sourceQuestions.length} 道`);
       return;
     }
-
     const nowIso = new Date().toISOString();
     setData((previous) => ({
       ...previous,
       practices: {
         ...previous.practices,
         [storageKey]: {
-          deckId: activeDeck.id,
+          deckId: targetDeck.id,
           scope: "favorites",
-          questionIds: scopedFavoriteQuestions.map((question) => question.id),
+          questionIds: sourceQuestions.map((question) => question.id),
           currentIndex: 0,
           mode: "answer",
-          optionOrders: buildPracticeOptionOrders(scopedFavoriteQuestions, false),
+          optionOrders: buildPracticeOptionOrders(sourceQuestions, false),
           shuffleOptions: false,
           shuffleQuestions: false,
           autoAdvanceCorrect: true,
@@ -2248,7 +2250,7 @@ function App() {
       }
     }));
     setView("practice");
-    setStatus(`${reset ? "已重新开始" : "已开始"}收藏刷题，共 ${scopedFavoriteQuestions.length} 道`);
+    setStatus(`${questionIds ? "已继续" : reset ? "已重新开始" : "已开始"}收藏刷题，共 ${sourceQuestions.length} 道`);
   }
 
   function startPractice(reset = false, shuffleOptions = practiceShuffleOptions, shuffleQuestions = practiceShuffleQuestions) {
@@ -2393,13 +2395,13 @@ function App() {
   }
 
   function setPracticeIndex(index: number) {
-    if (!activeDeck || !currentPracticeStorageKey) return;
+    if (!activePracticeDeck || !currentPracticeStorageKey) return;
     clearPracticeAutoAdvance();
     setData((previous) => {
       const practice = previous.practices[currentPracticeStorageKey];
       if (!practice || practice.questionIds.length === 0) return previous;
       const boundedIndex = Math.max(0, Math.min(practice.questionIds.length - 1, index));
-      const mode = isHardQuestionDeck(activeDeck) || practice.scope === "mistakes" ? "answer" : getPracticeMode(practice);
+      const mode = isHardQuestionDeck(activePracticeDeck) || practice.scope === "mistakes" ? "answer" : getPracticeMode(practice);
       return {
         ...previous,
         practices: {
@@ -2415,7 +2417,7 @@ function App() {
   }
 
   function setPracticeMode(mode: PracticeMode) {
-    if (!activeDeck || !currentPracticeStorageKey) return;
+    if (!activePracticeDeck || !currentPracticeStorageKey) return;
     setData((previous) => {
       const practice = previous.practices[currentPracticeStorageKey];
       if (!practice || practice.submittedAt) return previous;
@@ -2440,8 +2442,8 @@ function App() {
   }
 
   function togglePracticeOption(key: string) {
-    if (!activeDeck || !activePractice || !currentPracticeStorageKey || activePractice.submittedAt) return;
-    if (activePractice.scope !== "mistakes" && !isHardQuestionDeck(activeDeck) && getPracticeMode(activePractice) === "review") return;
+    if (!activePracticeDeck || !activePractice || !currentPracticeStorageKey || activePractice.submittedAt) return;
+    if (activePractice.scope !== "mistakes" && !isHardQuestionDeck(activePracticeDeck) && getPracticeMode(activePractice) === "review") return;
     const questionId = activePractice.questionIds[activePractice.currentIndex];
     const question = questionById.get(questionId);
     const results = activePractice.results ?? {};
@@ -2512,8 +2514,8 @@ function App() {
   }
 
   function confirmPracticeQuestion() {
-    if (!activeDeck || !activePractice || !currentPracticeStorageKey || activePractice.submittedAt) return;
-    if (activePractice.scope !== "mistakes" && !isHardQuestionDeck(activeDeck) && getPracticeMode(activePractice) === "review") return;
+    if (!activePracticeDeck || !activePractice || !currentPracticeStorageKey || activePractice.submittedAt) return;
+    if (activePractice.scope !== "mistakes" && !isHardQuestionDeck(activePracticeDeck) && getPracticeMode(activePractice) === "review") return;
     const questionId = activePractice.questionIds[activePractice.currentIndex];
     const question = questionById.get(questionId);
     const selectedKeys = activePractice.answers[questionId] ?? [];
@@ -2559,7 +2561,7 @@ function App() {
     }
   }
 
-  function submitPractice() {
+  async function submitPractice() {
     if (!activePractice || !currentPracticeStorageKey) return;
     const practiceDeck = activeDeck ?? dataRef.current.decks.find((deck) => deck.id === activePractice.deckId) ?? null;
     if (activePractice.questionIds.length === 0) {
@@ -2578,9 +2580,7 @@ function App() {
       const unconfirmedText = unconfirmedIndices.length > 0
         ? `\n已选择但未确认：第 ${formatQuestionIndexList(unconfirmedIndices)} 题`
         : "";
-      const shouldSubmit = window.confirm(
-        `还有 ${pendingIndices.length} 道题未完成判定。${unansweredText}${unconfirmedText}\n\n这些题交卷后会按未完成计入本次成绩，仍要交卷吗？`
-      );
+      const shouldSubmit = await confirmAction("仍要交卷吗", `还有 ${pendingIndices.length} 道题未完成判定。${unansweredText}${unconfirmedText}\n\n这些题交卷后会按未完成计入本次成绩，仍要交卷吗？`, "交卷");
       if (!shouldSubmit) {
         setStatus(`还有 ${pendingIndices.length} 道题未完成：第 ${formatQuestionIndexList(pendingIndices)} 题`);
         return;
@@ -2590,6 +2590,7 @@ function App() {
     const results = activePractice.results ?? {};
     const correct = Object.values(results).filter(Boolean).length;
     const total = activePractice.questionIds.length;
+    const wrongQuestionIds = activePractice.questionIds.filter((questionId) => results[questionId] === false);
     const score = Math.round((correct / Math.max(1, total)) * 1000) / 10;
     setData((previous) => ({
       ...previous,
@@ -2613,7 +2614,16 @@ function App() {
         correct,
         total,
         pending: pendingIndices.length,
-        detail: "本次刷题进度已保存。",
+        detail: wrongQuestionIds.length > 0 ? `本次错了 ${wrongQuestionIds.length} 道，可继续生成一轮错题刷题。` : "本次刷题进度已保存。",
+        primaryLabel: "直接退出",
+        secondaryAction: wrongQuestionIds.length > 0 ? {
+          label: "继续刷错题",
+          onClick: () => {
+            setAnswerProgressCollapsed(true);
+            setMistakePracticeFinishDialogOpen(false);
+            startMistakePractice(wrongQuestionIds);
+          }
+        } : undefined,
         onReturn: () => {
           setAnswerProgressCollapsed(true);
           setMistakePracticeFinishDialogOpen(false);
@@ -2622,24 +2632,27 @@ function App() {
       }));
       return;
     }
-    if (activePractice.scope === "mistakes") {
+    if (activePractice.scope === "mistakes" || activePractice.scope === "favorites") {
       setMistakePracticeFinishDialogOpen(true);
       return;
     }
   }
 
-  function continueMistakePracticeFromWrong() {
-    const questionIds = activePractice?.scope === "mistakes" ? getPracticeWrongQuestionIds(activePractice) : [];
+  function continuePracticeFromWrong() {
+    if (!activePractice || (activePractice.scope !== "mistakes" && activePractice.scope !== "favorites")) return;
+    const scope = activePractice.scope, questionIds = getPracticeWrongQuestionIds(activePractice);
     if (questionIds.length === 0) { setStatus("本轮没有需要继续刷的错题"); return; }
-    startMistakePractice(questionIds);
+    if (scope === "favorites") startFavoritePractice(true, questionIds);
+    else startMistakePractice(questionIds);
   }
 
-  function exitMistakePractice() {
+  function exitPracticeFinish() {
+    const scope = activePractice?.scope;
     setMistakePracticeFinishDialogOpen(false);
     setActivePracticeStorageKey(activeDeck?.id ?? activeDeckId);
     setAnswerProgressCollapsed(true);
-    setView("mistakes");
-    setStatus("已退出错题刷题");
+    setView(scope === "favorites" ? "favorites" : "mistakes");
+    setStatus(scope === "favorites" ? "已退出收藏刷题" : "已退出错题刷题");
   }
 
   function renderMain() {
@@ -2674,7 +2687,7 @@ function App() {
           editQuestion={setEditingQuestionId}
           toggleFavoriteQuestion={toggleFavoriteQuestion}
           favoritePractice={favoritePractice}
-          startFavoritePractice={activeDeck ? startFavoritePractice : undefined}
+          startFavoritePractice={startFavoritePractice}
         />
       );
     }
@@ -2705,7 +2718,7 @@ function App() {
         />
       );
     }
-    if (!activeDeck && view !== "import" && view !== "export" && view !== "settings") {
+    if (!activeDeck && view !== "practice" && view !== "import" && view !== "export" && view !== "settings") {
       return (
         <DeckHome
           data={data}
@@ -2787,7 +2800,7 @@ function App() {
     if (view === "practice") {
       return (
         <PracticeView
-          deck={activeDeck}
+          deck={activePracticeDeck}
           practice={activePractice}
           stats={data.stats}
           questionById={questionById}
@@ -3024,11 +3037,12 @@ function App() {
           onClose={() => setDailyReviewFinishDialogOpen(false)}
         />
       )}
-      {mistakePracticeFinishDialogOpen && mistakePractice?.scope === "mistakes" && (
+      {mistakePracticeFinishDialogOpen && activePractice && (activePractice.scope === "mistakes" || activePractice.scope === "favorites") && (
         <MistakePracticeFinishDialog
-          practice={mistakePractice}
-          onContinueWrong={continueMistakePracticeFromWrong}
-          onExit={exitMistakePractice}
+          practice={activePractice}
+          label={activePractice.scope === "favorites" ? "收藏刷题" : "错题刷题"}
+          onContinueWrong={continuePracticeFromWrong}
+          onExit={exitPracticeFinish}
           onClose={() => setMistakePracticeFinishDialogOpen(false)}
         />
       )}
@@ -3526,18 +3540,6 @@ function HomeStudyStats({ dailyStats }: { dailyStats: Record<string, DailyStudyS
   );
 }
 
-function FeatureGuide({ title, children, className = "" }: { title: string; children: ReactNode; className?: string }) {
-  return (
-    <section className={`feature-guide ${className}`.trim()} role="note">
-      <BookOpen size={19} aria-hidden="true" />
-      <div>
-        <strong>{title}</strong>
-        <p>{children}</p>
-      </div>
-    </section>
-  );
-}
-
 function FavoriteQuestionsPage({
   questions,
   scopeLabel,
@@ -3566,14 +3568,14 @@ function FavoriteQuestionsPage({
     <section className="page">
       <Header title="收藏题目" subtitle={`${scopeLabel} · ${questions.length} 道`} />
       <FeatureGuide title="收藏有什么用">
-        收藏是你主动保存的题目清单，适合标记重要题、易混题或稍后再看的题；进入题库后可全量刷本题库收藏题，位置和答题结果会自动保存。取消收藏不会删除原有答题记录。
+        收藏是你主动保存的题目清单，适合标记重要题、易混题或稍后再看的题；可直接刷当前范围内的收藏题，位置和答题结果会自动保存。取消收藏不会删除原有答题记录。
       </FeatureGuide>
       {startFavoritePractice && (
         <div className="toolbar favorite-practice-toolbar">
           <span className="panel-copy">
             {favoritePractice && !favoritePractice.submittedAt
               ? `收藏刷题进度：${completedCount} / ${questions.length} 已判定，进入后从上次位置继续。`
-              : `全量刷本题库的 ${questions.length} 道收藏题，答题进度会自动保存。`}
+              : `全量刷当前范围内的 ${questions.length} 道收藏题，答题进度会自动保存。`}
           </span>
           <button className="primary-button" onClick={startFavoritePractice} disabled={questions.length === 0}>
             <Play size={18} />

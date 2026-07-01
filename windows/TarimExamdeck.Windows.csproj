@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>塔里木刷题王</AssemblyName>
     <RootNamespace>TarimExamdeck.Windows</RootNamespace>
-    <Version>1.0.17</Version>
+    <Version>1.0.25</Version>
     <Company>Tarim Examdeck</Company>
     <Product>塔里木刷题王</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>

@@ -264,6 +264,7 @@ const BOOTSTRAP_PROGRESS_MARKER_KEY = "examdeck:bootstrap-progress:2026-06-29-18
 const QUESTION_BANK_EXPORT_DISABLED_MESSAGE = "由于版权风险原因，暂不支持导出题库，需要题库请在坦途联系软件作者！";
 const DISABLE_QUESTION_BANK_EXPORT = import.meta.env.VITE_DISABLE_QUESTION_BANK_EXPORT === "1";
 const IS_WINDOWS = navigator.platform.toLowerCase().includes("win");
+const IS_ANDROID_USER_AGENT = /android/i.test(navigator.userAgent);
 const SHORTCUT_MODIFIER_LABEL = IS_WINDOWS ? "Alt" : "Command";
 const BACK_SHORTCUT_LABEL = IS_WINDOWS ? "Ctrl" : SHORTCUT_MODIFIER_LABEL;
 
@@ -367,15 +368,14 @@ function renderBrandSubtitleLine(line: string): ReactNode {
 function App() {
   const [data, setData] = useState<AppData>(() => normalizeAppDataForCurrentRules(loadData()));
   const initialActiveSession = getRestorableActiveSession(data.activeSession, data);
-  const initialReviewSession = getInitialDailyReviewSession(data, getDailySummaryDateKey(new Date()));
-  const [view, setView] = useState<View>(() => initialActiveSession ? "exam" : "home");
-  const [activeDeckId, setActiveDeckId] = useState<string | null>(() => initialActiveSession?.deckId ?? initialReviewSession?.deckId ?? null);
+  const [view, setView] = useState<View>("home");
+  const [activeDeckId, setActiveDeckId] = useState<string | null>(null);
   const [activePracticeStorageKey, setActivePracticeStorageKey] = useState<string | null>(null);
   const [config, setConfig] = useState<ExamConfig>(() => initialActiveSession?.config ?? DEFAULT_CONFIG);
   const [activeSession, setActiveSession] = useState<ExamSession | null>(() => initialActiveSession);
-  const [activeReviewSession, setActiveReviewSession] = useState<DailyReviewSession | null>(() => initialReviewSession);
+  const [activeReviewSession, setActiveReviewSession] = useState<DailyReviewSession | null>(null);
   const [currentIndex, setCurrentIndex] = useState(() => getStoredSessionIndex(initialActiveSession));
-  const [reviewIndex, setReviewIndex] = useState(() => initialReviewSession?.reviewIndex ?? 0);
+  const [reviewIndex, setReviewIndex] = useState(0);
   const [practiceShuffleOptions, setPracticeShuffleOptions] = useState(false);
   const [practiceShuffleQuestions, setPracticeShuffleQuestions] = useState(false);
   const [practiceAutoAdvanceCorrect, setPracticeAutoAdvanceCorrect] = useState(true);
@@ -473,18 +473,16 @@ function App() {
       if (!cancelled && storedData && shouldUsePersistentData(storedData, dataRef.current)) {
         const normalizedData = normalizeAppDataForCurrentRules(storedData);
         const restoredActiveSession = getRestorableActiveSession(normalizedData.activeSession, normalizedData);
-        const restoredReviewSession = getInitialDailyReviewSession(normalizedData, getDailySummaryDateKey(new Date()));
         setData(normalizedData);
         setDailyMistakeSummary(normalizedData.dailyMistakeSummary ?? null);
-        setActiveReviewSession(restoredReviewSession);
-        setReviewIndex(restoredReviewSession?.reviewIndex ?? 0);
+        setActiveReviewSession(null);
+        setReviewIndex(0);
         setActiveSession(restoredActiveSession);
         setCurrentIndex(getStoredSessionIndex(restoredActiveSession));
-        setActiveDeckId(restoredActiveSession?.deckId ?? restoredReviewSession?.deckId ?? null);
+        setActiveDeckId(null);
         if (restoredActiveSession) {
           setConfig(restoredActiveSession.config);
-          setView("exam");
-          setStatus("已恢复未交卷的模拟考试");
+          setStatus("已载入本机学习数据，未交卷考试可进入题库继续");
         }
       }
       if (!cancelled) {
@@ -610,22 +608,20 @@ function App() {
         if (cancelled || restoredData.questions.length === 0) return;
         if (shouldImportBootstrapProgress(dataRef.current, restoredData)) {
           const restoredActiveSession = getRestorableActiveSession(restoredData.activeSession, restoredData);
-          const restoredReviewSession = getInitialDailyReviewSession(restoredData, getDailySummaryDateKey(new Date()));
           setData((previous) => (
             shouldImportBootstrapProgress(previous, restoredData)
               ? restoredData
               : previous
           ));
           setDailyMistakeSummary(restoredData.dailyMistakeSummary ?? null);
-          setActiveReviewSession(restoredReviewSession);
-          setReviewIndex(restoredReviewSession?.reviewIndex ?? 0);
+          setActiveReviewSession(null);
+          setReviewIndex(0);
           setActiveSession(restoredActiveSession);
           setCurrentIndex(getStoredSessionIndex(restoredActiveSession));
-          setActiveDeckId(restoredActiveSession?.deckId ?? restoredReviewSession?.deckId ?? null);
+          setActiveDeckId(null);
           if (restoredActiveSession) {
             setConfig(restoredActiveSession.config);
-            setView("exam");
-            setStatus("已恢复未交卷的模拟考试");
+            setStatus("已载入内置学习进度，未交卷考试可进入题库继续");
           } else {
             setStatus(`已载入内置学习进度：${restoredData.questions.length} 道题`);
           }
@@ -3829,7 +3825,7 @@ function FavoriteQuestionsPanel({
           ))}
         </div>
       ) : (
-        <p className="empty-text">暂无收藏题。答题时按 {SHORTCUT_MODIFIER_LABEL}+1，或点击题目卡右上角星标收藏。</p>
+        <p className="empty-text">{IS_ANDROID_USER_AGENT ? "暂无收藏题。答题时点击题目卡右上角星标收藏。" : `暂无收藏题。答题时按 ${SHORTCUT_MODIFIER_LABEL}+1，或点击题目卡右上角星标收藏。`}</p>
       )}
     </section>
   );
@@ -3874,7 +3870,7 @@ function SlashedQuestionsPanel({
           ))}
         </div>
       ) : (
-        <p className="empty-text">暂无已斩题。答题时按 {SHORTCUT_MODIFIER_LABEL}+4，或点击题目卡右上角小刀标记。</p>
+        <p className="empty-text">{IS_ANDROID_USER_AGENT ? "暂无已斩题。答题时点击题目卡右上角小刀标记。" : `暂无已斩题。答题时按 ${SHORTCUT_MODIFIER_LABEL}+4，或点击题目卡右上角小刀标记。`}</p>
       )}
     </section>
   );
@@ -4279,8 +4275,8 @@ function ExamView({
             <AnswerProgressToggle collapsed={progressCollapsed} setCollapsed={setProgressCollapsed} />
           </div>
         </div>
-        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(activeSession.items[currentIndex - 1].questionId) : null} next={currentIndex < activeSession.items.length - 1 ? questionById.get(activeSession.items[currentIndex + 1].questionId) : null} favoriteQuestionSet={favoriteQuestionSet} slashedQuestionSet={slashedQuestionSet} hardQuestionSet={hardQuestionSet}>
-        <article className="question-panel">
+        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(activeSession.items[currentIndex - 1].questionId) : null} next={currentIndex < activeSession.items.length - 1 ? questionById.get(activeSession.items[currentIndex + 1].questionId) : null} favoriteQuestionSet={favoriteQuestionSet} slashedQuestionSet={slashedQuestionSet} hardQuestionSet={hardQuestionSet} answerItems={activeSession.items} revealAll={submitted} stats={stats} notes={notes}>
+        <article key={question.id} className="question-panel">
           <div className="question-panel-tools">
             <span className="type-pill">{question.type}</span>
             <div className="question-panel-actions">
@@ -4456,8 +4452,8 @@ function DailyReviewView({
             <AnswerProgressToggle collapsed={progressCollapsed} setCollapsed={setProgressCollapsed} />
           </div>
         </div>
-        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(activeReviewSession.items[currentIndex - 1].questionId) : null} next={currentIndex < activeReviewSession.items.length - 1 ? questionById.get(activeReviewSession.items[currentIndex + 1].questionId) : null} favoriteQuestionSet={favoriteQuestionSet} slashedQuestionSet={slashedQuestionSet} hardQuestionSet={hardQuestionSet}>
-        <article className="question-panel">
+        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(activeReviewSession.items[currentIndex - 1].questionId) : null} next={currentIndex < activeReviewSession.items.length - 1 ? questionById.get(activeReviewSession.items[currentIndex + 1].questionId) : null} favoriteQuestionSet={favoriteQuestionSet} slashedQuestionSet={slashedQuestionSet} hardQuestionSet={hardQuestionSet} answerItems={activeReviewSession.items} stats={stats} notes={notes}>
+        <article key={question.id} className="question-panel">
           <div className="question-panel-tools">
             <span className="type-pill">{question.type}</span>
             <div className="question-panel-actions">
@@ -4764,8 +4760,8 @@ function PracticeView({
             <AnswerProgressToggle collapsed={progressCollapsed} setCollapsed={setProgressCollapsed} />
           </div>
         </div>
-        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(practice.questionIds[currentIndex - 1]) : null} next={currentIndex < practice.questionIds.length - 1 ? questionById.get(practice.questionIds[currentIndex + 1]) : null} favoriteQuestionSet={favoriteQuestionSet} slashedQuestionSet={slashedQuestionSet} hardQuestionSet={hardQuestionSet}>
-        <article className="question-panel">
+        <AndroidQuestionSwipeStage previous={currentIndex > 0 ? questionById.get(practice.questionIds[currentIndex - 1]) : null} next={currentIndex < practice.questionIds.length - 1 ? questionById.get(practice.questionIds[currentIndex + 1]) : null} favoriteQuestionSet={favoriteQuestionSet} slashedQuestionSet={slashedQuestionSet} hardQuestionSet={hardQuestionSet} practice={practice} practiceReviewMode={isReviewMode} stats={stats} notes={notes}>
+        <article key={question.id} className="question-panel">
           <div className="question-panel-tools">
             <span className="type-pill">{question.type}</span>
             <div className="question-panel-actions">
@@ -6063,39 +6059,6 @@ function ScrollableQuestionNav({
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const sidebar = container?.closest<HTMLElement>(".question-nav");
-    const layout = sidebar?.parentElement;
-    const main = layout?.querySelector<HTMLElement>(".exam-main");
-    const questionPanel = main?.querySelector<HTMLElement>(".question-panel");
-    if (!sidebar || !main || !questionPanel) return;
-
-    const compactLayout = window.matchMedia("(max-width: 960px)");
-    const syncHeight = () => {
-      if (compactLayout.matches) {
-        sidebar.style.removeProperty("height");
-        return;
-      }
-      const mainTop = main.getBoundingClientRect().top;
-      const panelBottom = questionPanel.getBoundingClientRect().bottom;
-      sidebar.style.height = `${Math.max(240, Math.round(panelBottom - mainTop))}px`;
-    };
-
-    const observer = new ResizeObserver(syncHeight);
-    observer.observe(questionPanel);
-    compactLayout.addEventListener("change", syncHeight);
-    window.addEventListener("resize", syncHeight);
-    syncHeight();
-
-    return () => {
-      observer.disconnect();
-      compactLayout.removeEventListener("change", syncHeight);
-      window.removeEventListener("resize", syncHeight);
-      sidebar.style.removeProperty("height");
-    };
-  }, []);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {

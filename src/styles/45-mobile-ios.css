@@ -805,6 +805,12 @@
     margin-bottom: 18px;
   }
 
+  .native-android .question-panel-actions .favorite-button,
+  .native-android .question-panel-actions .slashed-button,
+  .native-android .question-panel-actions .hard-question-button {
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+
   .native-android .question-text,
   .native-android .app-shell.sidebar-collapsed .question-text {
     margin-bottom: 20px;

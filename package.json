@@ -1,6 +1,6 @@
 {
   "name": "examdeck",
-  "version": "1.0.22",
+  "version": "1.0.25",
   "private": true,
   "type": "module",
   "scripts": {

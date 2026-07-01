@@ -97,7 +97,7 @@ describe("app end-to-end smoke", () => {
     expect(addButton).toBeTruthy();
 
     addButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(document.querySelector<HTMLButtonElement>(".deck-card-menu-button")).toBeTruthy();
     expect(document.body.textContent).toContain("已加入");

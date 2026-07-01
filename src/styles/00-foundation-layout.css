@@ -565,7 +565,7 @@ button { cursor: pointer; }
 }
 .app-shell.sidebar-collapsed .question-nav {
   top: 28px;
-  height: 708px;
+  height: min(920px, calc(100dvh - 124px));
   margin-top: 0;
 }
 .app-shell.sidebar-collapsed .nav-grid {

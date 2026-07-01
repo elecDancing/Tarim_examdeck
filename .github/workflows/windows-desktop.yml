@@ -46,7 +46,15 @@ jobs:
 
       - name: Build installer
         shell: pwsh
-        run: makensis installer/windows/TarimExamdeck.nsi
+        run: |
+          $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+            $makensis = "${env:ProgramFiles}\NSIS\makensis.exe"
+          }
+          if (-not (Test-Path $makensis)) {
+            throw "makensis.exe was not found after installing NSIS"
+          }
+          & $makensis installer/windows/TarimExamdeck.nsi
 
       - name: Upload installer
         uses: actions/upload-artifact@v5

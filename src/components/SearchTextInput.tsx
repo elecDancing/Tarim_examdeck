@@ -26,6 +26,7 @@ export function SearchTextInput({ value, onChange, placeholder }: SearchTextInpu
 
   const emitValue = (nextValue: string, force = false) => {
     if (!force && composingRef.current) return;
+    reopenCollapsedSearchResults(inputRef.current);
     if (nextValue === lastEmittedRef.current) return;
     lastEmittedRef.current = nextValue;
     onChangeRef.current(nextValue);
@@ -67,7 +68,14 @@ export function SearchTextInput({ value, onChange, placeholder }: SearchTextInpu
       onChange={(event) => {
         emitValue(event.currentTarget.value);
       }}
+      onFocus={(event) => {
+        if (event.currentTarget.value.trim()) reopenCollapsedSearchResults(event.currentTarget);
+      }}
       placeholder={placeholder}
     />
   );
+}
+
+function reopenCollapsedSearchResults(input: HTMLInputElement | null) {
+  input?.closest(".search-panel")?.classList.remove("mobile-search-results-collapsed", "mobile-search-results-closing");
 }

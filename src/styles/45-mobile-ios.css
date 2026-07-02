@@ -770,9 +770,9 @@
     transform: none;
   }
 
-  .native-android .android-question-swipe-stage { position: relative; display: block; --android-swipe-x: 0px; overflow: hidden; border-radius: 30px; touch-action: pan-y; }
+  .native-android .android-question-swipe-stage { position: relative; display: block; --android-swipe-x: 0px; --android-swipe-card-inset: 18px; overflow: visible; border-radius: 0; touch-action: pan-y; }
   .native-android .android-question-swipe-track { display: flex; width: 300%; align-items: flex-start; transform: translate3d(calc(-33.333333% + var(--android-swipe-x)), 0, 0); will-change: transform; }
-  .native-android .android-question-swipe-page { flex: 0 0 33.333333%; width: 33.333333%; box-sizing: border-box; }
+  .native-android .android-question-swipe-page { flex: 0 0 33.333333%; width: 33.333333%; box-sizing: border-box; padding: 0 var(--android-swipe-card-inset); }
   .native-android .android-question-swipe-current { display: block; }
   .native-android .android-question-swipe-preview { position: relative; display: block; pointer-events: none; opacity: 1; }
   .native-android .android-question-swipe-preview .question-panel { margin: 0; }
@@ -783,7 +783,7 @@
   .native-android .android-question-swipe-stage.android-swipe-committing .android-question-swipe-track { transition: transform 155ms cubic-bezier(0.32, 0.72, 0, 1); }
 
   .native-android .question-panel,
-  .native-android .app-shell.sidebar-collapsed .question-panel { padding: 18px 16px 20px; border: 0; border-radius: 28px; box-shadow: 0 18px 42px rgba(24, 38, 56, 0.035); outline: 0; }
+  .native-android .app-shell.sidebar-collapsed .question-panel { padding: 18px 16px 20px; border: 0; border-radius: 28px; box-shadow: 0 18px 42px rgba(24, 38, 56, 0.07), 0 1px 0 rgba(255, 255, 255, 0.85) inset; outline: 0; }
 
   .native-android .slash-burst-card { position: absolute; top: calc(50% + 116px); left: 50%; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; animation: android-slash-title 1500ms cubic-bezier(0.16, 1, 0.3, 1) forwards; transform: translate(-50%, -50%); }
   .native-android .slash-burst-card strong, .native-android .slash-burst-card strong.manual-slash-title, .native-android .hard-question-burst-card strong, .native-android .hard-question-burst-card strong.manual-hard-title { font-size: 52px; line-height: 0.94; letter-spacing: 0.06em; text-shadow: 0 2px 0 rgba(240, 185, 74, 0.34), 0 14px 28px rgba(24, 38, 56, 0.18); }

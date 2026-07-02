@@ -11,6 +11,7 @@ import { AnswerProgressDismissLayer, isAnswerProgressBlankTap, MobileNavDismissL
 import { AnswerNavToggle, AnswerProgressToggle, RecentSessions, ResultSummary } from "./components/AnswerNavigation";
 import { AndroidQuestionSwipeStage } from "./components/AndroidQuestionSwipeStage";
 import { SearchTextInput } from "./components/SearchTextInput";
+import { HighlightedRichText, ProficiencyBadge, RichText } from "./components/RichText";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -53,7 +54,6 @@ import {
   buildDefaultExamConfig,
   buildQuickExamConfig,
   getProficiency,
-  getProficiencyClass,
   getQuestionImageUrls,
   countProficiency,
   isActiveMistake,
@@ -64,7 +64,6 @@ import {
   isAllDailyReviewCompleteForToday,
   searchQuestions,
   getSearchTerms,
-  buildHighlightRegex,
   escapeRegExp,
   groupQuestionsByType,
   scoreQuestionMatch,
@@ -177,7 +176,6 @@ import {
   getDailySummaryDateKey,
   getNextDailySummaryResetAt,
   formatStudyDate,
-  parseRichText,
   findNextFormulaDelimiter,
   findClosingFormulaDelimiter,
   isEscapedDollar,
@@ -6238,62 +6236,6 @@ function Header({ title, subtitle }: { title: string; subtitle: string }) {
   );
 }
 
-function RichText({ text, className = "" }: { text: string; className?: string }) {
-  const parts = useMemo(() => parseRichText(text), [text]);
-  return (
-    <span className={["rich-text", className].filter(Boolean).join(" ")}>
-      {parts.map((part, index) => {
-        if (part.kind === "text") {
-          return <span key={index} className="rich-text-plain">{part.value}</span>;
-        }
-        return (
-          <span
-            key={index}
-            className={part.displayMode ? "rich-formula rich-formula-block" : "rich-formula rich-formula-inline"}
-            dangerouslySetInnerHTML={{ __html: part.html }}
-          />
-        );
-      })}
-    </span>
-  );
-}
-
-function HighlightedRichText({ text, terms, className = "" }: { text: string; terms: string[]; className?: string }) {
-  const parts = useMemo(() => parseRichText(text), [text]);
-  return (
-    <span className={["rich-text", className].filter(Boolean).join(" ")}>
-      {parts.map((part, index) => {
-        if (part.kind === "text") {
-          return <HighlightedPlainText key={index} value={part.value} terms={terms} />;
-        }
-        return (
-          <span
-            key={index}
-            className={part.displayMode ? "rich-formula rich-formula-block" : "rich-formula rich-formula-inline"}
-            dangerouslySetInnerHTML={{ __html: part.html }}
-          />
-        );
-      })}
-    </span>
-  );
-}
-
-function HighlightedPlainText({ value, terms }: { value: string; terms: string[] }) {
-  const regex = buildHighlightRegex(terms);
-  if (!regex) return <span className="rich-text-plain">{value}</span>;
-
-  const nodes: ReactNode[] = [];
-  let cursor = 0;
-  value.replace(regex, (match, _term, offset: number) => {
-    if (offset > cursor) nodes.push(<span key={`text-${cursor}`}>{value.slice(cursor, offset)}</span>);
-    nodes.push(<mark key={`mark-${offset}`} className="search-highlight">{match}</mark>);
-    cursor = offset + match.length;
-    return match;
-  });
-  if (cursor < value.length) nodes.push(<span key={`text-${cursor}`}>{value.slice(cursor)}</span>);
-  return <span className="rich-text-plain">{nodes}</span>;
-}
-
 function FavoriteButton({
   isFavorite,
   onToggle,
@@ -6391,10 +6333,6 @@ function AnswerAttemptStats({ stat, pendingResult }: { stat?: QuestionStat; pend
       <span className="answer-stat-item">连续正确 <strong>{correctStreak}</strong> 次</span>
     </span>
   );
-}
-
-function ProficiencyBadge({ level, compact = false }: { level: ProficiencyLevel; compact?: boolean }) {
-  return <span className={`proficiency-badge proficiency-${getProficiencyClass(level)} ${compact ? "compact" : ""}`}>{level}</span>;
 }
 
 function PracticeModeSwitch({ mode, setMode }: { mode: PracticeMode; setMode: (mode: PracticeMode) => void }) {

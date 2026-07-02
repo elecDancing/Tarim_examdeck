@@ -70,6 +70,7 @@ export function useAndroidLifecycle(options: AndroidLifecycleOptions) {
         current.requestAnsweringLeave();
         return;
       }
+      if (current.view === "home" && collapseHomeSearchResults()) return;
       if (current.view !== "home") {
         if (current.activeDeckId && current.view !== "dashboard") current.setView("dashboard");
         else current.goHome();
@@ -111,4 +112,17 @@ export function useAndroidLifecycle(options: AndroidLifecycleOptions) {
 
 function isNativeAndroid() {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
+}
+
+function collapseHomeSearchResults() {
+  const panel = document.querySelector<HTMLElement>(".page > .search-panel:not(.mobile-search-results-collapsed)");
+  const input = panel?.querySelector<HTMLInputElement>("input");
+  if (!panel || !input?.value.trim()) return false;
+  panel.classList.add("mobile-search-results-closing");
+  if (document.activeElement instanceof HTMLElement && panel.contains(document.activeElement)) document.activeElement.blur();
+  window.setTimeout(() => {
+    panel.classList.remove("mobile-search-results-closing");
+    if (input.value.trim()) panel.classList.add("mobile-search-results-collapsed");
+  }, 190);
+  return true;
 }

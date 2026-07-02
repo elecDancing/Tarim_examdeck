@@ -770,7 +770,7 @@
     transform: none;
   }
 
-  .native-android .android-question-swipe-stage { position: relative; display: block; width: 100vw; max-width: 100vw; margin-left: calc(50% - 50vw); --android-swipe-x: 0px; --android-swipe-card-inset: 4px; overflow: visible; border-radius: 0; touch-action: pan-y; }
+  .native-android .android-question-swipe-stage { position: relative; display: block; width: 100vw; max-width: 100vw; margin-left: calc(50% - 50vw); --android-swipe-x: 0px; --android-swipe-card-inset: 4px; overflow: visible; border-radius: 0; touch-action: pan-y; } .native-android .exam-layout, .native-android .app-shell.sidebar-collapsed .exam-layout, .native-android .exam-main { overflow-x: visible; }
   .native-android .android-question-swipe-track { display: flex; width: 300%; align-items: flex-start; transform: translate3d(calc(-33.333333% + var(--android-swipe-x)), 0, 0); will-change: transform; }
   .native-android .android-question-swipe-page { flex: 0 0 33.333333%; width: 33.333333%; box-sizing: border-box; padding: 0 var(--android-swipe-card-inset); }
   .native-android .android-question-swipe-current { display: block; }

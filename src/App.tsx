@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ClipboardEvent, ReactNode } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import { CopyrightDialog } from "./components/CopyrightDialog";
@@ -3183,7 +3183,7 @@ function DeckActionConfirmDialog({
 }
 
 function SlashBurst({ question, reason }: { question?: Question; reason: SlashAnimationReason }) {
-  const isManual = reason === "manual";
+  const isManual = reason === "manual", androidCompact = document.documentElement.classList.contains("native-android");
   return (
     <div className="slash-burst" aria-hidden="true">
       <div className="slash-burst-ring" />
@@ -3193,7 +3193,7 @@ function SlashBurst({ question, reason }: { question?: Question; reason: SlashAn
       <div className="slash-burst-cut cut-a" />
       <div className="slash-burst-cut cut-b" />
       <div className="slash-burst-card">
-        <strong className={isManual ? "manual-slash-title" : undefined}>{isManual ? "斩" : "已自动斩题"}</strong>
+        <strong className={isManual ? "manual-slash-title" : undefined}>{androidCompact ? "斩" : isManual ? "斩" : "已自动斩题"}</strong>
         <span>{isManual ? `${question?.uid ?? "这道题"} 已加入已斩题目` : `${question?.uid ?? "这道题"} 连续答对 5 次`}</span>
       </div>
     </div>
@@ -3201,7 +3201,7 @@ function SlashBurst({ question, reason }: { question?: Question; reason: SlashAn
 }
 
 function HardQuestionBurst({ question, reason }: { question?: Question; reason: HardQuestionAnimationReason }) {
-  const isManual = reason === "manual";
+  const isManual = reason === "manual", androidCompact = document.documentElement.classList.contains("native-android");
   return (
     <div className="slash-burst hard-question-burst" aria-hidden="true">
       <div className="slash-burst-ring" />
@@ -3211,7 +3211,7 @@ function HardQuestionBurst({ question, reason }: { question?: Question; reason: 
       <div className="slash-burst-cut cut-a" />
       <div className="slash-burst-cut cut-b" />
       <div className="slash-burst-card hard-question-burst-card">
-        <strong className={isManual ? "manual-hard-title" : undefined}>{isManual ? "重难" : "已加入重难题"}</strong>
+        <strong className={isManual ? "manual-hard-title" : undefined}>{androidCompact ? "重难" : isManual ? "重难" : "已加入重难题"}</strong>
         <span>{isManual ? `${question?.uid ?? "这道题"} 已手动加入重难题库` : `${question?.uid ?? "这道题"} 正确率低于 50%`}</span>
       </div>
     </div>
@@ -5903,6 +5903,7 @@ function QuestionEditDialog({
   const [answerKeysText, setAnswerKeysText] = useState(question.answerKeys.join(""));
   const [answerText, setAnswerText] = useState(question.answerText || question.answerKeys.join(""));
   const [imageUrlsText, setImageUrlsText] = useState((question.imageUrls ?? []).join("\n"));
+  const [imagePasteStatus, setImagePasteStatus] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -5913,6 +5914,7 @@ function QuestionEditDialog({
     setAnswerKeysText(question.answerKeys.join(""));
     setAnswerText(question.answerText || question.answerKeys.join(""));
     setImageUrlsText((question.imageUrls ?? []).join("\n"));
+    setImagePasteStatus("");
     setError("");
   }, [question]);
 
@@ -5935,6 +5937,24 @@ function QuestionEditDialog({
 
   function removeOption(index: number) {
     setOptionTexts((previous) => previous.filter((_, optionIndex) => optionIndex !== index));
+  }
+
+  async function handleImageUrlsPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const imageFiles = getClipboardImageFiles(event.clipboardData);
+    if (imageFiles.length === 0) return;
+
+    event.preventDefault();
+    setError("");
+    setImagePasteStatus(`正在读取 ${imageFiles.length} 张图片...`);
+
+    try {
+      const dataUrls = await Promise.all(imageFiles.map(readImageFileAsDataUrl));
+      setImageUrlsText((previous) => appendImageUrlsText(previous, dataUrls));
+      setImagePasteStatus(`已粘贴 ${dataUrls.length} 张图片，保存后写入题目`);
+    } catch {
+      setImagePasteStatus("");
+      setError("图片读取失败，请重新粘贴");
+    }
   }
 
   function resetJudgementOptions() {
@@ -6074,12 +6094,51 @@ function QuestionEditDialog({
           <RichText text={answerText || answerKeysText || "暂无答案"} />
         </section>
         <label className="edit-field">
-          <span>图片地址（可选，每行一个）</span>
-          <textarea value={imageUrlsText} onChange={(event) => setImageUrlsText(event.target.value)} rows={3} />
+          <span>图片地址（可选，每行一个，支持粘贴图片）</span>
+          <textarea value={imageUrlsText} onChange={(event) => {
+            setImageUrlsText(event.target.value);
+            if (imagePasteStatus) setImagePasteStatus("");
+          }} onPaste={handleImageUrlsPaste} rows={3} />
+          <small className="edit-field-hint">{imagePasteStatus || "可粘贴截图或复制的图片；保存后会作为题目配图同步。"}</small>
         </label>
       </article>
     </div>
   );
+}
+
+function getClipboardImageFiles(clipboardData: DataTransfer) {
+  const imageFiles = new Map<string, File>();
+  Array.from(clipboardData.items ?? []).forEach((item) => {
+    if (item.kind !== "file" || !item.type.startsWith("image/")) return;
+    const file = item.getAsFile();
+    if (file) imageFiles.set(buildClipboardFileKey(file), file);
+  });
+  Array.from(clipboardData.files ?? []).forEach((file) => {
+    if (file.type.startsWith("image/")) imageFiles.set(buildClipboardFileKey(file), file);
+  });
+  return [...imageFiles.values()];
+}
+
+function buildClipboardFileKey(file: File) {
+  return `${file.name}|${file.type}|${file.size}|${file.lastModified}`;
+}
+
+function readImageFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (result.startsWith("data:image/")) resolve(result);
+      else reject(new Error("剪贴板内容不是图片"));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("图片读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function appendImageUrlsText(previous: string, imageUrls: string[]) {
+  const lines = previous.split(/\n/).map((item) => item.trim()).filter(Boolean);
+  return [...lines, ...imageUrls].join("\n");
 }
 
 function ScrollableQuestionNav({

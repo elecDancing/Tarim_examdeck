@@ -878,6 +878,13 @@
   line-height: 1.6;
 }
 
+.edit-field-hint {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .edit-field input:focus,
 .edit-field textarea:focus,
 .edit-field select:focus,

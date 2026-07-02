@@ -38,6 +38,7 @@ windows-launcher/obj/
 backups/
 local-backups/
 release/
+output/
 *.exe
 *.zip
 *.dmg

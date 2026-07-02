@@ -24,9 +24,11 @@ function isNativeAndroid() {
   return document.documentElement.classList.contains("native-android");
 }
 
-function isIgnoredSwipeTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(
-    target.closest("button, a, input, textarea, select, [contenteditable='true'], .option-button, .question-panel-actions, .question-note-panel, .practice-answer-search, .mode-switch, .exam-topbar, .sidebar, .question-nav, .modal-backdrop, .android-submit-summary-backdrop")
+function isIgnoredSwipeTarget(target: EventTarget | null, allowOptionSwipe: boolean) {
+  if (!(target instanceof Element)) return false;
+  if (target.closest(".option-button")) return !allowOptionSwipe;
+  return Boolean(
+    target.closest("button, a, input, textarea, select, [contenteditable='true'], .question-panel-actions, .practice-answer-search, .mode-switch, .exam-topbar, .sidebar, .question-nav, .modal-backdrop, .android-submit-summary-backdrop")
   );
 }
 
@@ -295,7 +297,7 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     };
 
     const beginSwipe = (clientX: number, clientY: number, target: EventTarget | null, input: "touch" | "pointer") => {
-      if (!latestOptionsRef.current.isAnsweringView || !isNativeAndroid() || isIgnoredSwipeTarget(target) || !getSwipeStage()) {
+      if (!latestOptionsRef.current.isAnsweringView || !isNativeAndroid() || isIgnoredSwipeTarget(target, isCurrentAnswered()) || !getSwipeStage()) {
         tracking = false;
         if (activeInput === input) activeInput = null;
         return;

@@ -760,16 +760,18 @@ export function normalizeQuestionTextFields(data: AppData): AppData {
 }
 
 export function normalizeAppDataForCurrentRules(data: AppData): AppData {
-  const dailyReviewSessions = {
-    ...(data.dailyReviewSessions ?? {}),
-    ...(data.dailyReviewSession ? { [data.dailyReviewSession.deckId]: data.dailyReviewSession } : {})
-  };
-  return garbageCollectUnreferencedQuestions(syncHardQuestionDeckForCurrentRules(migrateBundledQuestionImages(normalizeQuestionTextFields(normalizeStudyPlanDeckIds(pruneSlashedFromHardQuestionDeck({
-    ...data,
-    sessions: dedupeExamSessionsForApp(data.sessions ?? []),
-    dailyReviewSessions,
-    dailyReviewSession: data.dailyReviewSession ?? null
-  }))))));
+  const sessions = dedupeExamSessionsForApp(data.sessions ?? []);
+  const dailyReviewSession = data.dailyReviewSession ?? null;
+  const sourceDailyReviewSessions = data.dailyReviewSessions ?? {};
+  const dailyReviewSessions = dailyReviewSession && sourceDailyReviewSessions[dailyReviewSession.deckId] !== dailyReviewSession
+    ? { ...sourceDailyReviewSessions, [dailyReviewSession.deckId]: dailyReviewSession }
+    : sourceDailyReviewSessions;
+  const baseData = sessions === data.sessions
+    && dailyReviewSessions === data.dailyReviewSessions
+    && dailyReviewSession === data.dailyReviewSession
+    ? data
+    : { ...data, sessions, dailyReviewSessions, dailyReviewSession };
+  return garbageCollectUnreferencedQuestions(syncHardQuestionDeckForCurrentRules(migrateBundledQuestionImages(normalizeQuestionTextFields(normalizeStudyPlanDeckIds(pruneSlashedFromHardQuestionDeck(baseData))))));
 }
 
 export function normalizeStudyPlanDeckIds(data: AppData): AppData {
@@ -792,10 +794,8 @@ export function normalizeDailyReviewSession(session: DailyReviewSession | null, 
   if (!session) return null;
   if (session.items.length === 0 || isDailyReviewSessionComplete(session)) return null;
   const maxIndex = Math.max(0, session.items.length - 1);
-  return {
-    ...session,
-    reviewIndex: Math.max(0, Math.min(maxIndex, reviewIndex))
-  };
+  const nextReviewIndex = Math.max(0, Math.min(maxIndex, reviewIndex));
+  return session.reviewIndex === nextReviewIndex ? session : { ...session, reviewIndex: nextReviewIndex };
 }
 
 export function getCurrentDailyReviewSession(data: AppData, deckId: string, dateKey: string) {
@@ -835,10 +835,8 @@ export function getStoredSessionIndex(session: ExamSession | null | undefined) {
 export function normalizeActiveExamSession(session: ExamSession | null, currentIndex: number) {
   if (!session || session.submittedAt || session.items.length === 0) return null;
   const maxIndex = Math.max(0, session.items.length - 1);
-  return {
-    ...session,
-    currentIndex: Math.max(0, Math.min(maxIndex, currentIndex))
-  };
+  const nextCurrentIndex = Math.max(0, Math.min(maxIndex, currentIndex));
+  return session.currentIndex === nextCurrentIndex ? session : { ...session, currentIndex: nextCurrentIndex };
 }
 
 export function getRestorableActiveSession(session: ExamSession | null | undefined, data: AppData) {
@@ -908,11 +906,14 @@ export function dedupeExamSessionsForApp(sessions: ExamSession[]) {
     const nextTime = session.submittedAt ? new Date(session.submittedAt).getTime() : 0;
     if (nextTime >= previousTime) byId.set(session.id, session);
   });
-  return [...byId.values()].sort((a, b) => {
+  const deduped = [...byId.values()].sort((a, b) => {
     const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
     const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
     return bTime - aTime;
   }).slice(0, 100);
+  return deduped.length === sessions.length && deduped.every((session, index) => session === sessions[index])
+    ? sessions
+    : deduped;
 }
 
 export function upsertDeck(data: AppData, deckId: string, name: string, questions: Question[], isSeed = false): AppData {
@@ -1128,14 +1129,30 @@ export function garbageCollectUnreferencedQuestions(data: AppData): AppData {
   const filterRecord = <T,>(record: Record<string, T>) => Object.fromEntries(
     Object.entries(record).filter(([questionId]) => referencedQuestionIds.has(questionId))
   ) as Record<string, T>;
+  const questions = data.questions.filter((question) => referencedQuestionIds.has(question.id));
+  const stats = filterRecord(data.stats ?? {});
+  const notes = filterRecord(data.notes ?? {});
+  const favoriteQuestionIds = (data.favoriteQuestionIds ?? []).filter((questionId) => referencedQuestionIds.has(questionId));
+  const slashedQuestionIds = (data.slashedQuestionIds ?? []).filter((questionId) => referencedQuestionIds.has(questionId));
+  const autoHardQuestionIds = (data.autoHardQuestionIds ?? []).filter((questionId) => referencedQuestionIds.has(questionId));
+  if (
+    areSameQuestionList(data.questions, questions)
+    && areSameRecord(data.stats ?? {}, stats)
+    && areSameRecord(data.notes ?? {}, notes)
+    && areQuestionIdListsEqual(data.favoriteQuestionIds ?? [], favoriteQuestionIds)
+    && areQuestionIdListsEqual(data.slashedQuestionIds ?? [], slashedQuestionIds)
+    && areQuestionIdListsEqual(data.autoHardQuestionIds ?? [], autoHardQuestionIds)
+  ) {
+    return data;
+  }
   return {
     ...data,
-    questions: data.questions.filter((question) => referencedQuestionIds.has(question.id)),
-    stats: filterRecord(data.stats ?? {}),
-    notes: filterRecord(data.notes ?? {}),
-    favoriteQuestionIds: (data.favoriteQuestionIds ?? []).filter((questionId) => referencedQuestionIds.has(questionId)),
-    slashedQuestionIds: (data.slashedQuestionIds ?? []).filter((questionId) => referencedQuestionIds.has(questionId)),
-    autoHardQuestionIds: (data.autoHardQuestionIds ?? []).filter((questionId) => referencedQuestionIds.has(questionId))
+    questions,
+    stats,
+    notes,
+    favoriteQuestionIds,
+    slashedQuestionIds,
+    autoHardQuestionIds
   };
 }
 
@@ -1332,6 +1349,16 @@ export function syncHardQuestionDeckForCurrentRules(data: AppData): AppData {
 
 export function areQuestionIdListsEqual(left: string[], right: string[]) {
   return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+function areSameQuestionList(left: Question[], right: Question[]) {
+  return left.length === right.length && left.every((question, index) => question === right[index]);
+}
+
+function areSameRecord<T>(left: Record<string, T>, right: Record<string, T>) {
+  const leftEntries = Object.entries(left);
+  if (leftEntries.length !== Object.keys(right).length) return false;
+  return leftEntries.every(([key, value]) => right[key] === value);
 }
 
 export function areSeedDecksImported(data: AppData) {

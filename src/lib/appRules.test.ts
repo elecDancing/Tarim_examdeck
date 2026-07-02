@@ -222,6 +222,18 @@ describe("daily review rules", () => {
 });
 
 describe("stored data normalization", () => {
+  it("returns the same object when stored data already matches current rules", () => {
+    const q1 = makeQuestion("q1");
+    const data: AppData = {
+      ...emptyData,
+      questions: [q1],
+      decks: [{ id: "deck", name: "测试题库", questionIds: ["q1"], createdAt: "2026-06-28T00:00:00.000Z", updatedAt: "2026-06-28T00:00:00.000Z" }]
+    };
+    const normalized = normalizeAppDataForCurrentRules(data);
+
+    expect(normalizeAppDataForCurrentRules(normalized)).toBe(normalized);
+  });
+
   it("dedupes exam sessions and removes orphan questions", () => {
     const q1 = makeQuestion("q1");
     const orphan = makeQuestion("orphan");

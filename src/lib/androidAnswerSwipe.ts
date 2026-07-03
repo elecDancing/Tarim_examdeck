@@ -24,6 +24,13 @@ function isNativeAndroid() {
   return document.documentElement.classList.contains("native-android");
 }
 
+function isNoteEditingGuardActive() {
+  const root = document.documentElement;
+  if (root.classList.contains("android-note-editing") || root.classList.contains("android-note-edit-cooldown")) return true;
+  const activeElement = document.activeElement;
+  return activeElement instanceof Element && Boolean(activeElement.closest(".question-note-panel textarea"));
+}
+
 function isIgnoredSwipeTarget(target: EventTarget | null, allowOptionSwipe: boolean) {
   if (!(target instanceof Element)) return false;
   if (target.closest(".option-button")) return !allowOptionSwipe;
@@ -51,6 +58,8 @@ const SWIPE_MAX_DRAG_RATIO = 1;
 const SWIPE_RESET_MS = 220;
 const SWIPE_COMMIT_MS = 155;
 const SWIPE_TAP_DEBOUNCE_MS = 220;
+const OPTION_LEFT_EDGE_TAP_PX = 18;
+const OPTION_RIGHT_EDGE_TAP_PX = 32;
 
 function getSwipeStage() {
   return document.querySelector<HTMLElement>(".android-question-swipe-stage");
@@ -67,6 +76,16 @@ function getSwipeCommitPx() {
 function setStageVars(stage: HTMLElement, dx: number, progress: number) {
   stage.style.setProperty("--android-swipe-x", `${dx.toFixed(1)}px`);
   stage.style.setProperty("--android-swipe-progress", progress.toFixed(3));
+}
+
+function getOptionEdgeTapDirection(clientX: number, target: EventTarget | null): SwipeDirection | null {
+  if (!(target instanceof Element)) return null;
+  const optionButton = target.closest<HTMLElement>(".option-button");
+  if (!optionButton) return null;
+  const rect = optionButton.getBoundingClientRect();
+  if (clientX - rect.left <= OPTION_LEFT_EDGE_TAP_PX) return "previous";
+  if (rect.right - clientX <= OPTION_RIGHT_EDGE_TAP_PX) return "next";
+  return null;
 }
 
 export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
@@ -286,6 +305,13 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     const tapNavigateAt = (clientX: number, target: EventTarget | null) => {
       const now = performance.now();
       if (now - lastTapNavigateAt < SWIPE_TAP_DEBOUNCE_MS) return false;
+      if (isNoteEditingGuardActive()) return false;
+      const optionEdgeDirection = getOptionEdgeTapDirection(clientX, target);
+      if (optionEdgeDirection) {
+        const didNavigate = commitSwipe(optionEdgeDirection);
+        if (didNavigate) lastTapNavigateAt = now;
+        return didNavigate;
+      }
       if (isIgnoredTapTarget(target, isCurrentAnswered())) return false;
       const ratio = clientX / Math.max(1, window.innerWidth);
       if (ratio <= 0.32) {
@@ -308,7 +334,7 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     };
 
     const beginSwipe = (clientX: number, clientY: number, target: EventTarget | null, input: "touch" | "pointer") => {
-      if (!latestOptionsRef.current.isAnsweringView || !isNativeAndroid() || isIgnoredSwipeTarget(target, true) || !getSwipeStage()) {
+      if (!latestOptionsRef.current.isAnsweringView || !isNativeAndroid() || isNoteEditingGuardActive() || isIgnoredSwipeTarget(target, true) || !getSwipeStage()) {
         tracking = false;
         if (activeInput === input) activeInput = null;
         return;

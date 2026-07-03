@@ -1,4 +1,49 @@
+.study-calendar-panel {
+  position: relative;
+}
+
 .activity-cell {
   appearance: none;
   padding: 0;
+}
+
+.activity-tooltip {
+  position: absolute;
+  z-index: 12;
+  display: grid;
+  gap: 2px;
+  min-width: 138px;
+  padding: 8px 10px;
+  border: 1px solid rgba(225, 213, 185, 0.9);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.96);
+  box-shadow: 0 12px 30px rgba(24, 38, 56, 0.16);
+  color: var(--ink);
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  animation: activity-tooltip-in 140ms ease-out;
+}
+
+.activity-tooltip strong {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.activity-tooltip span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+@keyframes activity-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% + 4px)) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1);
+  }
 }

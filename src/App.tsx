@@ -6,6 +6,7 @@ import { CopyrightDialog } from "./components/CopyrightDialog";
 import { DailyReviewFinishDialog } from "./components/DailyReviewFinishDialog";
 import { DesktopCloseConfirmDialog } from "./components/DesktopCloseConfirmDialog";
 import { FeatureGuide } from "./components/FeatureGuide";
+import { HomeStudyStats } from "./components/HomeStudyStats";
 import { MistakePracticeFinishDialog } from "./components/MistakePracticeFinishDialog";
 import { AnswerProgressDismissLayer, isAnswerProgressBlankTap, MobileNavDismissLayer } from "./components/AndroidInteractionLayers";
 import { AnswerNavToggle, AnswerProgressToggle, RecentSessions, ResultSummary } from "./components/AnswerNavigation";
@@ -37,7 +38,7 @@ import {
   Upload,
   XCircle
 } from "lucide-react";
-import type { AppData, ChoiceOption, DailyMistakeSummary, DailyReviewItem, DailyReviewSession, DailyStudyStat, Deck, ExamConfig, ExamItem, ExamSession, ImportReport, PracticeMode, PracticeState, ProficiencyLevel, Question, QuestionStat, QuestionType } from "./types";
+import type { AppData, ChoiceOption, DailyMistakeSummary, DailyReviewItem, DailyReviewSession, Deck, ExamConfig, ExamItem, ExamSession, ImportReport, PracticeMode, PracticeState, ProficiencyLevel, Question, QuestionStat, QuestionType } from "./types";
 import { buildExamItems, getOrderedOptions, isAnswerCorrect, optionDisplayKey } from "./lib/exam";
 import { exportQuestionDecksToZip, exportQuestionsToExcel } from "./lib/excelExport";
 import { extractEmbeddedImages, mergeQuestions, parseExcelFile, parseExcelWorkbook } from "./lib/excelImport";
@@ -169,9 +170,6 @@ import {
   recordQuestionResultWithStat,
   recordQuestionResultInData,
   recordDailyStudyResult,
-  createEmptyDailyStat,
-  buildStudyHeatmap,
-  getActivityLevel,
   getLocalDateKey,
   getDailySummaryDateKey,
   getNextDailySummaryResetAt,
@@ -250,7 +248,6 @@ const TYPE_ORDER: QuestionType[] = ["判断题", "单选题", "多选题"];
 const PRACTICE_INTERLEAVE_TYPES: QuestionType[] = ["单选题", "判断题", "多选题"];
 const PROFICIENCY_LEVELS: ProficiencyLevel[] = ["已熟练", "欠熟练", "学习中", "未学习"];
 const PROFICIENCY_CHART_LEVELS: ProficiencyLevel[] = ["未学习", "学习中", "欠熟练", "已熟练"];
-const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 const QUICK_EXAM_TOTAL = 100;
 const DAILY_REVIEW_LIMIT = 1000;
 const MISTAKE_CLEAR_CORRECT_STREAK = 3;
@@ -3515,51 +3512,6 @@ function HomeTaskPanel({
   );
 }
 
-function HomeStudyStats({ dailyStats }: { dailyStats: Record<string, DailyStudyStat> }) {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const year = new Date().getFullYear();
-  const heatmap = buildStudyHeatmap(dailyStats, year);
-  const yearlyAnswered = heatmap.days.reduce((sum, day) => sum + day.stat.answered, 0);
-  useLayoutEffect(() => {
-    const timer = window.setTimeout(() => {
-      const scroller = scrollRef.current;
-      const today = scroller?.querySelector<HTMLElement>(".activity-cell.today");
-      if (!scroller || !today) return;
-      const targetLeft = today.offsetLeft - Math.max(0, (scroller.clientWidth - today.offsetWidth) / 2);
-      scroller.scrollLeft = Math.max(0, targetLeft);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [year, heatmap.weekCount]);
-
-  return (
-    <section className="study-calendar-panel">
-      <div className="heatmap-head">
-        <span>年度刷题热力图</span>
-        <em>今年累计 {yearlyAnswered.toLocaleString("zh-CN")} 题</em>
-      </div>
-      <div className="activity-calendar" aria-label={`${year} 年每日刷题量`}>
-        <div className="weekday-labels" aria-hidden="true">
-          {WEEKDAY_LABELS.map((label) => <span key={label}>{label}</span>)}
-        </div>
-        <div className="activity-scroll" ref={scrollRef}>
-          <div className="activity-grid" style={{ gridTemplateColumns: `repeat(${heatmap.weekCount}, 13px)` }}>
-            {heatmap.days.map((day) => (
-              <button
-                key={day.date}
-                type="button"
-                className={`activity-cell level-${day.level}${day.isToday ? " today" : ""}`}
-                style={{ gridColumn: day.weekIndex + 1, gridRow: day.weekday + 1 }}
-                title={`${formatStudyDate(day.date)}：刷题 ${day.stat.answered}，正确 ${day.stat.correct}，错误 ${day.stat.wrong}`}
-                aria-label={`${formatStudyDate(day.date)}刷题 ${day.stat.answered} 题`}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function FavoriteQuestionsPage({
   questions,
   scopeLabel,
@@ -6366,6 +6318,7 @@ function QuestionNotePanel({
   const previousQuestionId = useRef(questionId);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const shouldFocusEditor = useRef(false);
+  const noteCooldownTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     setDraft(note);
@@ -6386,6 +6339,20 @@ function QuestionNotePanel({
     }
   }, [isEditing, questionId]);
 
+  useEffect(() => {
+    if (!isAndroidNative) return undefined;
+    const root = document.documentElement;
+    root.classList.toggle("android-note-editing", isEditing);
+    return () => {
+      root.classList.remove("android-note-editing");
+    };
+  }, [isEditing, isAndroidNative]);
+
+  useEffect(() => () => {
+    if (noteCooldownTimer.current) window.clearTimeout(noteCooldownTimer.current);
+    document.documentElement.classList.remove("android-note-editing", "android-note-edit-cooldown");
+  }, []);
+
   function updateDraft(value: string) {
     setDraft(value);
     onChange(questionId, value);
@@ -6394,6 +6361,19 @@ function QuestionNotePanel({
   function openEditor() {
     shouldFocusEditor.current = true;
     setIsEditing(true);
+  }
+
+  function closeEditor() {
+    setIsEditing(false);
+    if (!isAndroidNative) return;
+    const root = document.documentElement;
+    root.classList.remove("android-note-editing");
+    root.classList.add("android-note-edit-cooldown");
+    if (noteCooldownTimer.current) window.clearTimeout(noteCooldownTimer.current);
+    noteCooldownTimer.current = window.setTimeout(() => {
+      root.classList.remove("android-note-edit-cooldown");
+      noteCooldownTimer.current = undefined;
+    }, 320);
   }
 
   const trimmedDraft = draft.trim();
@@ -6417,11 +6397,11 @@ function QuestionNotePanel({
           rows={variant === "detail" ? 5 : 4}
           onChange={(event) => updateDraft(event.target.value)}
           onBlur={() => {
-            if (hasNote || isAndroidNative) setIsEditing(false);
+            if (hasNote || isAndroidNative) closeEditor();
           }}
           onKeyDown={(event) => {
             if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && hasNote) {
-              setIsEditing(false);
+              closeEditor();
             }
           }}
           placeholder="记录易错点、口诀、相似题差异或自己的理解；公式可写 $E=mc^2$"

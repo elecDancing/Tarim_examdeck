@@ -3,7 +3,22 @@
   .native-android .activity-cell:focus-visible {
     z-index: 1;
     transform: none;
+    border-color: rgba(24, 38, 56, 0.06);
     box-shadow: none;
     filter: none;
+  }
+
+  .native-android .activity-cell:active {
+    border-color: rgba(45, 111, 163, 0.82);
+    box-shadow: 0 0 0 2px rgba(45, 111, 163, 0.14);
+    filter: saturate(1.08);
+  }
+
+  .native-android .activity-tooltip {
+    min-width: 132px;
+    padding: 7px 10px;
+    border-radius: 13px;
+    background: rgba(255, 253, 248, 0.97);
+    box-shadow: 0 10px 24px rgba(24, 38, 56, 0.14);
   }
 }

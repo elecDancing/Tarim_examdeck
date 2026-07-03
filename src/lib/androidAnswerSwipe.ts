@@ -83,9 +83,11 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     let activeInput: "touch" | "pointer" | null = null;
     let activePointerId: number | null = null;
     let startTarget: EventTarget | null = null;
+    let suppressNextClick = false;
     let lastTapNavigateAt = 0;
     let resetTimer: number | undefined;
     let commitTimer: number | undefined;
+    let suppressClickTimer: number | undefined;
 
     const goPrevious = () => {
       const {
@@ -184,6 +186,15 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
       if (commitTimer) window.clearTimeout(commitTimer);
       resetTimer = undefined;
       commitTimer = undefined;
+    };
+
+    const suppressClickAfterSwipe = () => {
+      suppressNextClick = true;
+      if (suppressClickTimer) window.clearTimeout(suppressClickTimer);
+      suppressClickTimer = window.setTimeout(() => {
+        suppressNextClick = false;
+        suppressClickTimer = undefined;
+      }, 360);
     };
 
     const resetStage = () => {
@@ -297,7 +308,7 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     };
 
     const beginSwipe = (clientX: number, clientY: number, target: EventTarget | null, input: "touch" | "pointer") => {
-      if (!latestOptionsRef.current.isAnsweringView || !isNativeAndroid() || isIgnoredSwipeTarget(target, isCurrentAnswered()) || !getSwipeStage()) {
+      if (!latestOptionsRef.current.isAnsweringView || !isNativeAndroid() || isIgnoredSwipeTarget(target, true) || !getSwipeStage()) {
         tracking = false;
         if (activeInput === input) activeInput = null;
         return;
@@ -328,6 +339,7 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
         }
         if (Math.abs(dx) < SWIPE_INTENT_PX || Math.abs(dx) < Math.abs(dy) * 0.35) return;
         horizontalIntent = true;
+        suppressClickAfterSwipe();
       }
       preventDefault();
       setStageOffset(dx);
@@ -420,6 +432,12 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     };
 
     const onClickFallback = (event: MouseEvent) => {
+      if (suppressNextClick) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        suppressNextClick = false;
+        return;
+      }
       if (!latestOptionsRef.current.isAnsweringView || !isNativeAndroid() || activeInput || committedSwipe || !getSwipeStage()) return;
       if (tapNavigateAt(event.clientX, event.target)) event.preventDefault();
     };
@@ -445,6 +463,7 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
       document.removeEventListener("pointercancel", onPointerCancel, true);
       document.removeEventListener("click", onClickFallback, true);
       clearSwipeTimers();
+      if (suppressClickTimer) window.clearTimeout(suppressClickTimer);
       const stage = getSwipeStage();
       if (stage) {
         stage.classList.remove("android-swiping", "android-swipe-resetting", "android-swipe-committing", "android-swipe-prev", "android-swipe-next", "android-swipe-edge");

@@ -2,6 +2,7 @@ import type { AppData, ChoiceOption, DailyMistakeSummary, DailyReviewItem, Daily
 import katex from "katex";
 import { mergeQuestions } from "./excelImport";
 import { isStoredImageRef } from "./imageStore";
+import { migrateHardPracticeStorage } from "./practiceStorageKey";
 import { normalizeQuestionContentText } from "./textCleanup";
 
 export type DailyReviewSummary = {
@@ -791,11 +792,13 @@ export function normalizeAppDataForCurrentRules(data: AppData): AppData {
   const dailyReviewSessions = dailyReviewSession && sourceDailyReviewSessions[dailyReviewSession.deckId] !== dailyReviewSession
     ? { ...sourceDailyReviewSessions, [dailyReviewSession.deckId]: dailyReviewSession }
     : sourceDailyReviewSessions;
+  const migratedPractices = migrateHardPracticeStorage(data.practices ?? {});
   const baseData = sessions === data.sessions
     && dailyReviewSessions === data.dailyReviewSessions
     && dailyReviewSession === data.dailyReviewSession
+    && migratedPractices === data.practices
     ? data
-    : { ...data, sessions, dailyReviewSessions, dailyReviewSession };
+    : { ...data, sessions, dailyReviewSessions, dailyReviewSession, practices: migratedPractices };
   return garbageCollectUnreferencedQuestions(syncHardQuestionDeckForCurrentRules(migrateBundledQuestionImages(normalizeQuestionTextFields(normalizeStudyPlanDeckIds(pruneSlashedFromHardQuestionDeck(baseData))))));
 }
 
@@ -955,8 +958,8 @@ export function upsertDeck(data: AppData, deckId: string, name: string, question
     updatedAt: now,
     isSeed
   };
-  const nextPractices = { ...migratedData.practices };
-  if (migratedExistingDeck) delete nextPractices[deckId];
+  const nextPractices = migrateHardPracticeStorage({ ...migratedData.practices });
+  if (migratedExistingDeck && deckId !== HARD_QUESTION_DECK_ID) delete nextPractices[deckId];
   return garbageCollectUnreferencedQuestions({
     ...migratedData,
     questions: mergeQuestions(migratedData.questions, questions),

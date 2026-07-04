@@ -1,6 +1,6 @@
 import type { Deck, PracticeState } from "../types";
 
-const HARD_QUESTION_DECK_ID = "deck_hard_low_accuracy";
+export const HARD_QUESTION_DECK_ID = "deck_hard_low_accuracy";
 export const HARD_QUESTION_PRACTICE_KEY = `${HARD_QUESTION_DECK_ID}:practice`;
 
 function isHardQuestionDeckStorage(deck: Deck) {
@@ -29,5 +29,25 @@ export function withMigratedHardPractice(practices: Record<string, PracticeState
   if (!sourceKey || sourceKey === HARD_QUESTION_PRACTICE_KEY || !practice) return practices;
   const nextPractices: Record<string, PracticeState> = { ...practices, [HARD_QUESTION_PRACTICE_KEY]: practice };
   delete nextPractices[sourceKey];
+  return nextPractices;
+}
+
+export function migrateHardPracticeStorage(practices: Record<string, PracticeState>) {
+  const legacyPractice = practices[HARD_QUESTION_DECK_ID];
+  if (!legacyPractice) return practices;
+
+  const nextPractices: Record<string, PracticeState> = { ...practices };
+  delete nextPractices[HARD_QUESTION_DECK_ID];
+
+  if (!nextPractices[HARD_QUESTION_PRACTICE_KEY]) {
+    nextPractices[HARD_QUESTION_PRACTICE_KEY] = {
+      ...legacyPractice,
+      deckId: HARD_QUESTION_DECK_ID,
+      mode: "answer",
+      shuffleOptions: false,
+      shuffleQuestions: false
+    };
+  }
+
   return nextPractices;
 }

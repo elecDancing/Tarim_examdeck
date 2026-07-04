@@ -1,6 +1,7 @@
 import type { AppData } from "../types";
 import { saveBlob } from "./fileExport";
 import { exportStoredQuestionImages } from "./imageStore";
+import { migrateHardPracticeStorage } from "./practiceStorageKey";
 
 const STORAGE_KEY = "examdeck:v3";
 const STORAGE_BACKUP_KEY = "examdeck:v3:backup:last";
@@ -151,7 +152,7 @@ function normalizeStoredData(parsed: Partial<AppData>): AppData {
     studyPlanDeckIds: uniqueStoredIds(parsed.studyPlanDeckIds).filter((deckId) => deckIds.has(deckId)),
     sessions: dedupeExamSessions(parsed.sessions ?? []),
     activeSession: normalizeStoredActiveSession(parsed.activeSession),
-    practices: parsed.practices ?? {},
+    practices: migrateHardPracticeStorage(parsed.practices ?? {}),
     dailyReviewSessions,
     dailyReviewSession: legacySession,
     dailyMistakeSummary: parsed.dailyMistakeSummary ?? null,

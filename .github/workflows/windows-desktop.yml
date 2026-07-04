@@ -25,44 +25,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web assets
-        run: npm run build
-        env:
-          VITE_DISABLE_QUESTION_BANK_EXPORT: "1"
-
-      - name: Publish WPF app
-        shell: pwsh
-        run: |
-          dotnet publish windows/TarimExamdeck.Windows.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=false `
-            -o release/windows/publish
-
       - name: Install NSIS
         shell: pwsh
         run: choco install nsis --no-progress -y
 
-      - name: Build installer
+      - name: Read app version
+        id: version
         shell: pwsh
         run: |
-          $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
-          if (-not (Test-Path $makensis)) {
-            $makensis = "${env:ProgramFiles}\NSIS\makensis.exe"
-          }
-          if (-not (Test-Path $makensis)) {
-            throw "makensis.exe was not found after installing NSIS"
-          }
-          & $makensis installer/windows/TarimExamdeck.nsi
-          $artifact = Join-Path $env:GITHUB_WORKSPACE "release\tarim-examdeck-setup.exe"
-          if (-not (Test-Path -LiteralPath $artifact)) {
-            throw "Windows installer was not generated at $artifact"
-          }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          "app_version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build installer
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/build-windows-app.ps1
 
       - name: Upload installer
         uses: actions/upload-artifact@v5
         with:
-          name: tarim-examdeck-windows-setup
-          path: release/tarim-examdeck-setup.exe
+          name: tarim-examdeck-windows-setup-v${{ steps.version.outputs.app_version }}
+          path: release/tarim-examdeck-windows-setup-v${{ steps.version.outputs.app_version }}.exe
           if-no-files-found: error

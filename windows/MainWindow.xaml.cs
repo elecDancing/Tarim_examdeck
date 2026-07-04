@@ -17,6 +17,8 @@ namespace TarimExamdeck.Windows;
 public partial class MainWindow : Window
 {
     private const string AppHostName = "app.examdeck.local";
+    private static readonly string LogDirectory = Path.Combine(App.AppDataDirectory, "logs");
+    private static readonly string LogPath = Path.Combine(LogDirectory, "app.log");
     private readonly Dictionary<string, NativeSaveSession> _saveSessions = new();
     private bool _flushBeforeCloseCompleted;
     private bool _closeRequestInFlight;
@@ -81,29 +83,57 @@ public partial class MainWindow : Window
 
     private async Task InitializeBrowserAsync()
     {
-        var distPath = ResolveDistPath();
-        if (!Directory.Exists(distPath))
+        try
         {
-            MessageBox.Show($"未找到桌面版资源目录：{distPath}", "塔里木刷题王", MessageBoxButton.OK, MessageBoxImage.Error);
-            Close();
-            return;
-        }
+            WriteLog("Application starting.");
+            var distPath = ResolveDistPath();
+            if (!Directory.Exists(distPath))
+            {
+                MessageBox.Show($"未找到桌面版资源目录：{distPath}", "塔里木刷题王", MessageBoxButton.OK, MessageBoxImage.Error);
+                Close();
+                return;
+            }
 
-        Browser.CreationProperties = new Microsoft.Web.WebView2.Wpf.CoreWebView2CreationProperties
+            Browser.CreationProperties = new Microsoft.Web.WebView2.Wpf.CoreWebView2CreationProperties
+            {
+                UserDataFolder = App.WebViewDataDirectory
+            };
+            await Browser.EnsureCoreWebView2Async();
+            Browser.CoreWebView2.Settings.AreDevToolsEnabled = false;
+            Browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+            Browser.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            Browser.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                AppHostName,
+                distPath,
+                CoreWebView2HostResourceAccessKind.Allow);
+            Browser.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+            Browser.CoreWebView2.NavigationStarting += OnNavigationStarting;
+            Browser.CoreWebView2.Navigate($"https://{AppHostName}/index.html");
+            WriteLog($"Loaded dist from {distPath}");
+        }
+        catch (Exception error)
         {
-            UserDataFolder = App.WebViewDataDirectory
-        };
-        await Browser.EnsureCoreWebView2Async();
-        Browser.CoreWebView2.Settings.AreDevToolsEnabled = false;
-        Browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-        Browser.CoreWebView2.Settings.IsStatusBarEnabled = false;
-        Browser.CoreWebView2.SetVirtualHostNameToFolderMapping(
-            AppHostName,
-            distPath,
-            CoreWebView2HostResourceAccessKind.Allow);
-        Browser.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
-        Browser.CoreWebView2.NavigationStarting += OnNavigationStarting;
-        Browser.CoreWebView2.Navigate($"https://{AppHostName}/index.html");
+            WriteLog(error.ToString());
+            MessageBox.Show(
+                $"塔里木刷题王启动失败。\n\n常见原因：Windows 缺少 Microsoft Edge WebView2 Runtime，或本机 WebView2 环境损坏。\n\n错误信息：{error.Message}\n\n日志位置：{LogPath}",
+                "塔里木刷题王",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Close();
+        }
+    }
+
+    private static void WriteLog(string message)
+    {
+        try
+        {
+            Directory.CreateDirectory(LogDirectory);
+            File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}");
+        }
+        catch
+        {
+            // Logging must never prevent startup.
+        }
     }
 
     private static string ResolveDistPath()

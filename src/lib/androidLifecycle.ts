@@ -3,6 +3,7 @@ import type { MutableRefObject } from "react";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import type { AppData } from "../types";
+import { ANSWER_SEARCH_CLOSE_EVENT } from "./answerSearchOverlay";
 import { saveData } from "./storage";
 
 type AndroidLifecycleOptions = {
@@ -64,6 +65,7 @@ export function useAndroidLifecycle(options: AndroidLifecycleOptions) {
       if (current.hasDeckActionDialog) return current.setDeckActionDialog(null);
       if (current.dailyReviewFinishDialogOpen) return current.setDailyReviewFinishDialogOpen(false);
       if (current.navOpen) return current.setNavOpen(false);
+      if (collapseAnswerSearchLayer()) return;
       if (current.isAnsweringView && !current.answerProgressCollapsed) return current.setAnswerProgressCollapsed(true);
       if (current.isAnsweringView) {
         current.setNavOpen(false);
@@ -124,5 +126,11 @@ function collapseHomeSearchResults() {
     panel.classList.remove("mobile-search-results-closing");
     if (input.value.trim()) panel.classList.add("mobile-search-results-collapsed");
   }, 190);
+  return true;
+}
+
+function collapseAnswerSearchLayer() {
+  if (!document.querySelector(".practice-answer-search.open")) return false;
+  window.dispatchEvent(new Event(ANSWER_SEARCH_CLOSE_EVENT));
   return true;
 }

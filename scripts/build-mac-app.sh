@@ -8,9 +8,11 @@ APP_DIR="${RELEASE_DIR}/${APP_NAME}.app"
 CONTENTS_DIR="${APP_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
-ZIP_PATH="${RELEASE_DIR}/${APP_NAME}-mac.zip"
+APP_VERSION="$(node -p "require('${ROOT_DIR}/package.json').version")"
+APP_ARCH="$(uname -m)"
+ZIP_PATH="${RELEASE_DIR}/tarim-examdeck-macos-${APP_ARCH}-v${APP_VERSION}.zip"
 DMG_STAGING_DIR="${RELEASE_DIR}/dmg-staging"
-DMG_PATH="${RELEASE_DIR}/${APP_NAME}.dmg"
+DMG_PATH="${RELEASE_DIR}/tarim-examdeck-macos-${APP_ARCH}-v${APP_VERSION}.dmg"
 
 if [[ ! -d "${ROOT_DIR}/dist" ]]; then
   echo "dist 不存在，请先运行 npm run build" >&2

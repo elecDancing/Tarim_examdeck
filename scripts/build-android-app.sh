@@ -15,7 +15,7 @@ KEYSTORE_PATH="$KEYSTORE_DIR/tarim-android-release.jks"
 KEY_ALIAS="tarim-release"
 KEYSTORE_PASSWORD="${TARIM_ANDROID_KEYSTORE_PASSWORD:-tarim-android-release-2026}"
 APP_VERSION="$(node -p "require('./package.json').version")"
-APK_NAME="塔里木刷题王-android-v${APP_VERSION}.apk"
+APK_NAME="tarim-examdeck-android-v${APP_VERSION}.apk"
 
 mkdir -p "$RELEASE_DIR"
 
@@ -56,6 +56,7 @@ echo "==> Assembling signed Android release APK"
 )
 
 rm -f "$RELEASE_DIR/塔里木刷题王-android.apk"
+rm -f "$RELEASE_DIR/tarim-examdeck-android.apk"
 cp "$ROOT_DIR/android/app/build/outputs/apk/release/app-release.apk" "$RELEASE_DIR/$APK_NAME"
 
 echo "==> Generated $RELEASE_DIR/$APK_NAME"

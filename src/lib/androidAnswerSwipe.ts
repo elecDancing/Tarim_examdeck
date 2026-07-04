@@ -48,6 +48,7 @@ function isIgnoredTapTarget(target: EventTarget | null, allowOptionTap: boolean)
 }
 
 type SwipeDirection = "previous" | "next";
+type TapNavigateSource = "direct" | "click";
 
 const SWIPE_INTENT_PX = 6;
 const SWIPE_COMMIT_MIN_PX = 72;
@@ -58,11 +59,18 @@ const SWIPE_MAX_DRAG_RATIO = 1;
 const SWIPE_RESET_MS = 220;
 const SWIPE_COMMIT_MS = 155;
 const SWIPE_TAP_DEBOUNCE_MS = 220;
+const SWIPE_TAP_QUEUE_MAX = 15;
+const SWIPE_TAP_QUEUE_MIN_MS = 64;
+const SWIPE_TAP_QUEUE_STEP_DELAY_MS = 18;
 const OPTION_LEFT_EDGE_TAP_PX = 18;
 const OPTION_RIGHT_EDGE_TAP_PX = 32;
 
 function getSwipeStage() {
   return document.querySelector<HTMLElement>(".android-question-swipe-stage");
+}
+
+function getSwipeTrack(stage: HTMLElement | null = getSwipeStage()) {
+  return stage?.querySelector<HTMLElement>(".android-question-swipe-track") ?? null;
 }
 
 function getSwipeStageWidth() {
@@ -99,14 +107,28 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     let tracking = false;
     let horizontalIntent = false;
     let committedSwipe = false;
+    let committedSwipeDirection: SwipeDirection | null = null;
     let activeInput: "touch" | "pointer" | null = null;
     let activePointerId: number | null = null;
     let startTarget: EventTarget | null = null;
     let suppressNextClick = false;
     let lastTapNavigateAt = 0;
+    let queuedTapSteps = 0;
     let resetTimer: number | undefined;
     let commitTimer: number | undefined;
+    let queueTimer: number | undefined;
     let suppressClickTimer: number | undefined;
+    let cleanupCommitTransition: (() => void) | undefined;
+
+    const directionStep = (direction: SwipeDirection) => (direction === "next" ? 1 : -1);
+
+    const currentNavigationState = () => {
+      const { view, activeSession, currentIndex, activeReviewSession, reviewIndex, activePractice } = latestOptionsRef.current;
+      if (view === "exam" && activeSession) return { index: currentIndex, total: activeSession.items.length };
+      if (view === "review" && activeReviewSession) return { index: reviewIndex, total: activeReviewSession.items.length };
+      if (view === "practice" && activePractice) return { index: getPracticeActiveIndex(activePractice), total: activePractice.questionIds.length };
+      return null;
+    };
 
     const goPrevious = () => {
       const {
@@ -203,8 +225,38 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     const clearSwipeTimers = () => {
       if (resetTimer) window.clearTimeout(resetTimer);
       if (commitTimer) window.clearTimeout(commitTimer);
+      if (queueTimer) window.clearTimeout(queueTimer);
+      if (cleanupCommitTransition) cleanupCommitTransition();
       resetTimer = undefined;
       commitTimer = undefined;
+      queueTimer = undefined;
+      cleanupCommitTransition = undefined;
+    };
+
+    const enqueueTapStep = (direction: SwipeDirection) => {
+      const state = currentNavigationState();
+      if (!state) return false;
+      const activeStep = committedSwipeDirection ? directionStep(committedSwipeDirection) : 0;
+      const wantedTotalStep = activeStep + queuedTapSteps + directionStep(direction);
+      const minStep = -Math.min(SWIPE_TAP_QUEUE_MAX, state.index);
+      const maxStep = Math.min(SWIPE_TAP_QUEUE_MAX, state.total - 1 - state.index);
+      const nextTotalStep = Math.max(minStep, Math.min(maxStep, wantedTotalStep));
+      const nextQueuedSteps = nextTotalStep - activeStep;
+      const changed = nextQueuedSteps !== queuedTapSteps;
+      queuedTapSteps = nextQueuedSteps;
+      return changed || nextTotalStep !== 0;
+    };
+
+    const consumeQueuedDirection = (): SwipeDirection | null => {
+      if (queuedTapSteps > 0) {
+        queuedTapSteps -= 1;
+        return "next";
+      }
+      if (queuedTapSteps < 0) {
+        queuedTapSteps += 1;
+        return "previous";
+      }
+      return null;
     };
 
     const suppressClickAfterSwipe = () => {
@@ -249,11 +301,18 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
       const canCommit = direction === "previous" ? canGoPrevious() : canGoNext();
       if (!canCommit) {
         resetStage();
+        committedSwipe = false;
+        committedSwipeDirection = null;
+        queuedTapSteps = 0;
         return false;
       }
       const stage = getSwipeStage();
       if (commitTimer) window.clearTimeout(commitTimer);
+      if (queueTimer) window.clearTimeout(queueTimer);
+      if (cleanupCommitTransition) cleanupCommitTransition();
+      cleanupCommitTransition = undefined;
       committedSwipe = true;
+      committedSwipeDirection = direction;
       tracking = false;
       horizontalIntent = false;
       activeInput = null;
@@ -264,7 +323,14 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
         const stageWidth = stage.clientWidth || window.innerWidth;
         setStageVars(stage, direction === "previous" ? stageWidth : -stageWidth, 1);
       }
-      commitTimer = window.setTimeout(() => {
+      let didFinishCommit = false;
+      const finishCommit = () => {
+        if (didFinishCommit) return;
+        didFinishCommit = true;
+        if (commitTimer) window.clearTimeout(commitTimer);
+        if (cleanupCommitTransition) cleanupCommitTransition();
+        commitTimer = undefined;
+        cleanupCommitTransition = undefined;
         let didNavigate = false;
         flushSync(() => {
           didNavigate = navigateByDirection(direction);
@@ -272,13 +338,34 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
         if (!didNavigate) {
           resetStage();
           committedSwipe = false;
+          committedSwipeDirection = null;
+          queuedTapSteps = 0;
           return;
         }
         const currentStage = getSwipeStage();
         currentStage?.classList.remove("android-swiping", "android-swipe-resetting", "android-swipe-committing", "android-swipe-prev", "android-swipe-next", "android-swipe-edge");
         if (currentStage) setStageVars(currentStage, 0, 0);
+        const queuedDirection = consumeQueuedDirection();
+        if (queuedDirection) {
+          committedSwipeDirection = queuedDirection;
+          queueTimer = window.setTimeout(() => {
+            queueTimer = undefined;
+            commitSwipe(queuedDirection);
+          }, SWIPE_TAP_QUEUE_STEP_DELAY_MS);
+          return;
+        }
         committedSwipe = false;
-      }, SWIPE_COMMIT_MS);
+        committedSwipeDirection = null;
+      };
+      const track = getSwipeTrack(stage);
+      if (track) {
+        const onTransitionEnd = (event: TransitionEvent) => {
+          if (event.target === track && event.propertyName === "transform") finishCommit();
+        };
+        track.addEventListener("transitionend", onTransitionEnd);
+        cleanupCommitTransition = () => track.removeEventListener("transitionend", onTransitionEnd);
+      }
+      commitTimer = window.setTimeout(finishCommit, SWIPE_COMMIT_MS + 140);
       return true;
     };
 
@@ -302,26 +389,49 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
       return false;
     };
 
-    const tapNavigateAt = (clientX: number, target: EventTarget | null) => {
+    const tapNavigateAt = (clientX: number, target: EventTarget | null, source: TapNavigateSource = "direct") => {
       const now = performance.now();
-      if (now - lastTapNavigateAt < SWIPE_TAP_DEBOUNCE_MS) return false;
       if (isNoteEditingGuardActive()) return false;
+      const allowOptionTapNavigate = isCurrentAnswered();
+      if (isIgnoredTapTarget(target, allowOptionTapNavigate)) return false;
       const optionEdgeDirection = getOptionEdgeTapDirection(clientX, target);
+      if (committedSwipe) {
+        const minInterval = source === "click" ? SWIPE_TAP_DEBOUNCE_MS : SWIPE_TAP_QUEUE_MIN_MS;
+        if (now - lastTapNavigateAt < minInterval) return false;
+        const ratio = clientX / Math.max(1, window.innerWidth);
+        const direction = optionEdgeDirection ?? (ratio <= 0.32 ? "previous" : ratio >= 0.68 ? "next" : null);
+        if (!direction) return false;
+        const didQueue = enqueueTapStep(direction);
+        if (didQueue) {
+          lastTapNavigateAt = now;
+          if (source === "direct") suppressClickAfterSwipe();
+        }
+        return didQueue;
+      }
+      if (now - lastTapNavigateAt < SWIPE_TAP_DEBOUNCE_MS) return false;
       if (optionEdgeDirection) {
         const didNavigate = commitSwipe(optionEdgeDirection);
-        if (didNavigate) lastTapNavigateAt = now;
+        if (didNavigate) {
+          lastTapNavigateAt = now;
+          if (source === "direct") suppressClickAfterSwipe();
+        }
         return didNavigate;
       }
-      if (isIgnoredTapTarget(target, isCurrentAnswered())) return false;
       const ratio = clientX / Math.max(1, window.innerWidth);
       if (ratio <= 0.32) {
         const didNavigate = commitSwipe("previous");
-        if (didNavigate) lastTapNavigateAt = now;
+        if (didNavigate) {
+          lastTapNavigateAt = now;
+          if (source === "direct") suppressClickAfterSwipe();
+        }
         return didNavigate;
       }
       if (ratio >= 0.68) {
         const didNavigate = commitSwipe("next");
-        if (didNavigate) lastTapNavigateAt = now;
+        if (didNavigate) {
+          lastTapNavigateAt = now;
+          if (source === "direct") suppressClickAfterSwipe();
+        }
         return didNavigate;
       }
       return false;
@@ -334,7 +444,7 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
     };
 
     const beginSwipe = (clientX: number, clientY: number, target: EventTarget | null, input: "touch" | "pointer") => {
-      if (!latestOptionsRef.current.isAnsweringView || !isNativeAndroid() || isNoteEditingGuardActive() || isIgnoredSwipeTarget(target, true) || !getSwipeStage()) {
+      if (!latestOptionsRef.current.isAnsweringView || !isNativeAndroid() || committedSwipe || isNoteEditingGuardActive() || isIgnoredSwipeTarget(target, true) || !getSwipeStage()) {
         tracking = false;
         if (activeInput === input) activeInput = null;
         return;
@@ -465,7 +575,7 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
         return;
       }
       if (!latestOptionsRef.current.isAnsweringView || !isNativeAndroid() || activeInput || committedSwipe || !getSwipeStage()) return;
-      if (tapNavigateAt(event.clientX, event.target)) event.preventDefault();
+      if (tapNavigateAt(event.clientX, event.target, "click")) event.preventDefault();
     };
 
     const listenerTarget = document;
@@ -490,6 +600,8 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
       document.removeEventListener("click", onClickFallback, true);
       clearSwipeTimers();
       if (suppressClickTimer) window.clearTimeout(suppressClickTimer);
+      queuedTapSteps = 0;
+      committedSwipeDirection = null;
       const stage = getSwipeStage();
       if (stage) {
         stage.classList.remove("android-swiping", "android-swipe-resetting", "android-swipe-committing", "android-swipe-prev", "android-swipe-next", "android-swipe-edge");

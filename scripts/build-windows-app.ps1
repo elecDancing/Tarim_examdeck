@@ -11,6 +11,9 @@ $WindowsRelease = Join-Path $Release "windows"
 $Publish = Join-Path $WindowsRelease "publish"
 $Project = Join-Path $Root "windows\TarimExamdeck.Windows.csproj"
 $InstallerScript = Join-Path $Root "installer\windows\TarimExamdeck.iss"
+$AppVersion = (Get-Content (Join-Path $Root "package.json") -Raw | ConvertFrom-Json).version
+$InstallerFileName = "tarim-examdeck-windows-setup-v$AppVersion.exe"
+$InstallerPath = Join-Path $Release $InstallerFileName
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
   throw "未找到 dotnet。请在 Windows 构建机安装 .NET 8 SDK。"
@@ -35,22 +38,18 @@ try {
     -r $Runtime `
     --self-contained true `
     -p:PublishSingleFile=false `
+    -p:Version=$AppVersion `
     -o $Publish
 
   $makensis = Get-Command makensis -ErrorAction SilentlyContinue
   $nsisScript = Join-Path $Root "installer\windows\TarimExamdeck.nsi"
   if ($makensis) {
-    & $makensis.Source $nsisScript
-    $asciiInstaller = Join-Path $Release "tarim-examdeck-setup.exe"
-    $localizedInstaller = Join-Path $Release "塔里木刷题王-setup.exe"
-    if (Test-Path $asciiInstaller) {
-      Copy-Item -LiteralPath $asciiInstaller -Destination $localizedInstaller -Force
-    }
-    Write-Host "已生成 NSIS 安装包：" (Join-Path $Release "塔里木刷题王-setup.exe")
+    & $makensis.Source "/DAPP_VERSION=$AppVersion" "/DSETUP_OUTFILE=$InstallerPath" $nsisScript
+    Write-Host "已生成 NSIS 安装包：" $InstallerPath
   } elseif (Get-Command ISCC.exe -ErrorAction SilentlyContinue) {
     $iscc = Get-Command ISCC.exe
-    & $iscc.Source $InstallerScript
-    Write-Host "已生成 Inno Setup 安装包：" (Join-Path $Release "塔里木刷题王-setup.exe")
+    & $iscc.Source "/DMyAppVersion=$AppVersion" "/DOutputBaseFilename=tarim-examdeck-windows-setup-v$AppVersion" $InstallerScript
+    Write-Host "已生成 Inno Setup 安装包：" $InstallerPath
   } else {
     Write-Warning "未找到 makensis 或 Inno Setup ISCC.exe，已跳过 setup.exe。"
   }

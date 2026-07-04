@@ -1,7 +1,12 @@
 #define MyAppName "塔里木刷题王"
-#define MyAppVersion "1.0.28"
+#ifndef MyAppVersion
+#define MyAppVersion "1.0.38"
+#endif
+#ifndef OutputBaseFilename
+#define OutputBaseFilename "tarim-examdeck-windows-setup-v" + MyAppVersion
+#endif
 #define MyAppPublisher "Tarim Examdeck"
-#define MyAppExeName "塔里木刷题王.exe"
+#define MyAppExeName "TarimExamdeck.exe"
 
 [Setup]
 AppId={{9B6E1E3B-7B8E-4F7D-9DAA-23B97B83D942}
@@ -12,7 +17,7 @@ DefaultDirName={localappdata}\Programs\TarimExamdeck
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\..\release
-OutputBaseFilename=塔里木刷题王-setup
+OutputBaseFilename={#OutputBaseFilename}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

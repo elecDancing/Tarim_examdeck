@@ -420,6 +420,16 @@
   color: #765716 !important;
 }
 
+.practice-inline-summary span {
+  color: #765716;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.practice-progress-metric span {
+  min-width: 0;
+}
+
 .compact-check {
   min-height: 34px;
   display: inline-flex;

@@ -2,13 +2,18 @@ Unicode true
 !include "MUI2.nsh"
 
 !define APP_NAME "塔里木刷题王"
-!define APP_VERSION "1.0.28"
+!ifndef APP_VERSION
+!define APP_VERSION "1.0.39"
+!endif
+!ifndef SETUP_OUTFILE
+!define SETUP_OUTFILE "..\..\release\tarim-examdeck-windows-setup-v${APP_VERSION}.exe"
+!endif
 !define APP_PUBLISHER "Tarim Examdeck"
-!define APP_EXE "塔里木刷题王.exe"
+!define APP_EXE "TarimExamdeck.exe"
 !define APP_DIR "TarimExamdeck"
 
 Name "${APP_NAME}"
-OutFile "..\..\release\tarim-examdeck-setup.exe"
+OutFile "${SETUP_OUTFILE}"
 Icon "..\..\windows\Assets\AppIcon.ico"
 UninstallIcon "..\..\windows\Assets\AppIcon.ico"
 InstallDir "$LOCALAPPDATA\Programs\${APP_DIR}"

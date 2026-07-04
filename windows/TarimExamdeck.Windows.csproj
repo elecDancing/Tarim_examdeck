@@ -5,9 +5,9 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>塔里木刷题王</AssemblyName>
+    <AssemblyName>TarimExamdeck</AssemblyName>
     <RootNamespace>TarimExamdeck.Windows</RootNamespace>
-    <Version>1.0.28</Version>
+    <Version>1.0.39</Version>
     <Company>Tarim Examdeck</Company>
     <Product>塔里木刷题王</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>

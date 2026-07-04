@@ -1,20 +1,24 @@
 import { describe, expect, it } from "vitest";
-import type { AppData, Question, QuestionStat, QuestionType } from "../types";
+import type { AppData, PracticeState, Question, QuestionStat, QuestionType } from "../types";
 import {
   addFinishedSession,
   buildMistakeConfig,
   buildDailyReviewPlan,
   buildDailyReviewSummary,
+  buildPracticeDeckSnapshot,
   deleteDeckFromData,
   getDailySummaryDateKey,
   getCurrentDailyReviewSession,
   getInitialDailyReviewSession,
   isDailyReviewSessionComplete,
   isAutoHardQuestionLocked,
+  isHardQuestionDeck,
+  isPracticeReadyToSubmit,
   isQuestionInHardDeck,
   normalizeDailyReviewSession,
   normalizeAppDataForCurrentRules,
   reconcileMistakePractice,
+  recordQuestionResultInData,
   recordDailyStudyResult,
   resetDeckProgressForDeck,
   shouldUsePersistentData
@@ -177,6 +181,58 @@ describe("persistent data selection", () => {
     };
 
     expect(shouldUsePersistentData(stored, current)).toBe(true);
+  });
+});
+
+describe("practice submit rules", () => {
+  it("allows submitting a finished practice from any current question", () => {
+    const practice: PracticeState = {
+      deckId: "deck",
+      scope: "deck",
+      questionIds: ["q1", "q2", "q3"],
+      currentIndex: 0,
+      mode: "answer",
+      answers: { q1: ["A"], q2: ["A"], q3: ["A"] },
+      results: { q1: true, q2: true, q3: false },
+      startedAt: "2026-07-03T10:00:00.000Z",
+      updatedAt: "2026-07-03T10:05:00.000Z"
+    };
+
+    expect(isPracticeReadyToSubmit(practice)).toBe(true);
+  });
+
+  it("does not allow submitting when any practice question is still pending", () => {
+    const practice: PracticeState = {
+      deckId: "deck",
+      scope: "deck",
+      questionIds: ["q1", "q2", "q3"],
+      currentIndex: 2,
+      mode: "answer",
+      answers: { q1: ["A"], q2: ["A"] },
+      results: { q1: true, q2: true },
+      startedAt: "2026-07-03T10:00:00.000Z",
+      updatedAt: "2026-07-03T10:05:00.000Z"
+    };
+
+    expect(isPracticeReadyToSubmit(practice)).toBe(false);
+  });
+
+  it("does not allow submitting an already submitted practice again", () => {
+    const practice: PracticeState = {
+      deckId: "deck",
+      scope: "deck",
+      questionIds: ["q1"],
+      currentIndex: 0,
+      mode: "answer",
+      answers: { q1: ["A"] },
+      results: { q1: true },
+      submittedAt: "2026-07-03T10:05:00.000Z",
+      score: 100,
+      startedAt: "2026-07-03T10:00:00.000Z",
+      updatedAt: "2026-07-03T10:05:00.000Z"
+    };
+
+    expect(isPracticeReadyToSubmit(practice)).toBe(false);
   });
 });
 
@@ -360,6 +416,55 @@ describe("hard question deck rules", () => {
     expect(isQuestionInHardDeck(normalized, "q1")).toBe(true);
     expect(normalized.autoHardQuestionIds).toEqual([]);
     expect(isAutoHardQuestionLocked(normalized, "q1")).toBe(false);
+  });
+
+  it("keeps an active hard-question practice on its original question snapshot after recovery", () => {
+    const q1 = makeQuestion("q1");
+    const q2 = makeQuestion("q2");
+    const hardDeck = {
+      id: "deck_hard_low_accuracy",
+      name: "重难题",
+      questionIds: ["q1", "q2"],
+      createdAt: "2026-06-28T00:00:00.000Z",
+      updatedAt: "2026-06-28T00:00:00.000Z"
+    };
+    const practice: PracticeState = {
+      deckId: "deck_hard_low_accuracy",
+      scope: "deck",
+      questionIds: ["q1", "q2"],
+      currentIndex: 0,
+      mode: "answer",
+      answers: { q1: ["A"] },
+      results: { q1: true },
+      startedAt: "2026-07-03T10:00:00.000Z",
+      updatedAt: "2026-07-03T10:01:00.000Z"
+    };
+    const data: AppData = {
+      ...emptyData,
+      questions: [q1, q2],
+      decks: [
+        { id: "deck", name: "测试题库", questionIds: ["q1", "q2"], createdAt: "2026-06-28T00:00:00.000Z", updatedAt: "2026-06-28T00:00:00.000Z" },
+        hardDeck
+      ],
+      stats: {
+        q1: learnedStat("q1", { seen: 3, correct: 1, wrong: 2, correctStreak: 1 }),
+        q2: learnedStat("q2", { seen: 2, correct: 0, wrong: 2, correctStreak: 0 })
+      },
+      autoHardQuestionIds: ["q1", "q2"],
+      practices: {
+        deck_hard_low_accuracy: practice
+      }
+    };
+
+    const next = recordQuestionResultInData(data, "q1", true, "2026-07-03T10:02:00.000Z");
+    const liveHardDeck = next.decks.find((deck) => deck.id === "deck_hard_low_accuracy") ?? null;
+    const snapshotDeck = buildPracticeDeckSnapshot(liveHardDeck, next.practices.deck_hard_low_accuracy);
+
+    expect(isQuestionInHardDeck(next, "q1")).toBe(false);
+    expect(liveHardDeck?.questionIds).toEqual(["q2"]);
+    expect(next.practices.deck_hard_low_accuracy.questionIds).toEqual(["q1", "q2"]);
+    expect(snapshotDeck?.questionIds).toEqual(["q1", "q2"]);
+    expect(isHardQuestionDeck(snapshotDeck)).toBe(true);
   });
 });
 

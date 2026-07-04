@@ -623,6 +623,31 @@ export function buildAllDailyReviewDeck(decks: Deck[]): Deck {
   };
 }
 
+export function buildPracticeDeckSnapshot(deck: Deck | null | undefined, practice: PracticeState | null | undefined): Deck | null {
+  if (!practice) return deck ?? null;
+  const shouldUsePracticeSnapshot = !deck
+    || deck.id !== practice.deckId
+    || isHardQuestionDeck(deck)
+    || practice.scope === "favorites"
+    || practice.scope === "mistakes";
+  if (!shouldUsePracticeSnapshot) return deck;
+
+  const fallbackName = practice.scope === "favorites"
+    ? "收藏题"
+    : practice.scope === "mistakes"
+      ? "错题"
+      : practice.deckId === HARD_QUESTION_DECK_ID
+        ? HARD_QUESTION_DECK_NAME
+        : deck?.name ?? "刷题";
+  return {
+    id: practice.deckId,
+    name: deck?.name ?? fallbackName,
+    questionIds: practice.questionIds,
+    createdAt: practice.startedAt,
+    updatedAt: practice.updatedAt
+  };
+}
+
 export function getDeckQuestions(questions: Question[], deck: Deck | null) {
   if (!deck) return [];
   const byId = new Map(questions.map((question) => [question.id, question]));
@@ -2025,6 +2050,10 @@ export function getPracticePendingIndices(practice: PracticeState) {
     if (results[questionId] === undefined) indices.push(index);
     return indices;
   }, []);
+}
+
+export function isPracticeReadyToSubmit(practice: PracticeState) {
+  return !practice.submittedAt && getPracticePendingIndices(practice).length === 0;
 }
 
 export function getPracticeUnansweredIndices(practice: PracticeState) {

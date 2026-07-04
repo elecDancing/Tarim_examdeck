@@ -16,7 +16,7 @@ $InstallerFileName = "tarim-examdeck-windows-setup-v$AppVersion.exe"
 $InstallerPath = Join-Path $Release $InstallerFileName
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-  throw "未找到 dotnet。请在 Windows 构建机安装 .NET 8 SDK。"
+  throw "dotnet was not found. Install .NET 8 SDK on the Windows build machine."
 }
 
 Push-Location $Root
@@ -55,13 +55,13 @@ try {
   $nsisScript = Join-Path $Root "installer\windows\TarimExamdeck.nsi"
   if ($makensisPath) {
     & $makensisPath "/DAPP_VERSION=$AppVersion" "/DSETUP_OUTFILE=$InstallerPath" $nsisScript
-    Write-Host "已生成 NSIS 安装包：" $InstallerPath
+    Write-Host "Generated NSIS installer:" $InstallerPath
   } elseif (Get-Command ISCC.exe -ErrorAction SilentlyContinue) {
     $iscc = Get-Command ISCC.exe
     & $iscc.Source "/DMyAppVersion=$AppVersion" "/DOutputBaseFilename=tarim-examdeck-windows-setup-v$AppVersion" $InstallerScript
-    Write-Host "已生成 Inno Setup 安装包：" $InstallerPath
+    Write-Host "Generated Inno Setup installer:" $InstallerPath
   } else {
-    Write-Warning "未找到 makensis 或 Inno Setup ISCC.exe，已跳过 setup.exe。"
+    Write-Warning "makensis or Inno Setup ISCC.exe was not found; skipped setup.exe generation."
   }
 }
 finally {

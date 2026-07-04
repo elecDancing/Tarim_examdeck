@@ -42,9 +42,19 @@ try {
     -o $Publish
 
   $makensis = Get-Command makensis -ErrorAction SilentlyContinue
-  $nsisScript = Join-Path $Root "installer\windows\TarimExamdeck.nsi"
+  $makensisPath = $null
   if ($makensis) {
-    & $makensis.Source "/DAPP_VERSION=$AppVersion" "/DSETUP_OUTFILE=$InstallerPath" $nsisScript
+    $makensisPath = $makensis.Source
+  } else {
+    $candidateMakensisPaths = @(
+      (Join-Path ${env:ProgramFiles(x86)} "NSIS\makensis.exe"),
+      (Join-Path ${env:ProgramFiles} "NSIS\makensis.exe")
+    )
+    $makensisPath = $candidateMakensisPaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+  }
+  $nsisScript = Join-Path $Root "installer\windows\TarimExamdeck.nsi"
+  if ($makensisPath) {
+    & $makensisPath "/DAPP_VERSION=$AppVersion" "/DSETUP_OUTFILE=$InstallerPath" $nsisScript
     Write-Host "已生成 NSIS 安装包：" $InstallerPath
   } elseif (Get-Command ISCC.exe -ErrorAction SilentlyContinue) {
     $iscc = Get-Command ISCC.exe

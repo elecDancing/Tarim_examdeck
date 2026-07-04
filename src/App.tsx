@@ -51,7 +51,7 @@ import { useAnswerSearchState } from "./lib/answerSearchOverlay";
 import { useAndroidLifecycle } from "./lib/androidLifecycle";
 import { useAndroidAnswerSwipe } from "./lib/androidAnswerSwipe";
 import { useDesktopCloseGuard } from "./lib/desktopCloseGuard";
-import { getDeckPracticeStorageKey, getStoredDeckPractice, getStoredDeckPracticeKey, withMigratedHardPractice } from "./lib/practiceStorageKey";
+import { getDeckPracticeStorageKey, getStoredDeckPractice, getStoredDeckPracticeKey, migrateHardPracticeStorage, withMigratedHardPractice } from "./lib/practiceStorageKey";
 import { clearPersonalDataForInitialization, loadBootstrapSeedData, restoreSeedDecksFromBootstrap } from "./lib/softwareInitialization";
 import { scrollElementToTop, scrollWindowToTop } from "./lib/domScroll";
 import {
@@ -723,7 +723,7 @@ function App() {
   const activeQuestions = useMemo(() => getDeckQuestions(data.questions, activeDeck), [data.questions, activeDeck]);
 
   useEffect(() => {
-    if (view !== "review" || (activeReviewSession && !isDailyReviewSessionComplete(activeReviewSession))) return;
+    if (view !== "review" || activeReviewSession) return;
     setDailyReviewFinishDialogOpen(false); setReviewIndex(0);
     setActivePracticeStorageKey(isActiveAllDailyReviewDeck ? null : getDeckPracticeStorageKey(activeDeck) ?? activeDeckId ?? null);
     setView(isActiveAllDailyReviewDeck ? "home" : "dashboard");
@@ -747,7 +747,9 @@ function App() {
     [activeDeck, data.practices]
   );
   const currentPracticeStorageKey = activePracticeStorageKey ?? activeDeckPracticeStorageKey;
-  const activePractice = currentPracticeStorageKey ? data.practices[currentPracticeStorageKey] : undefined;
+  const activePractice = currentPracticeStorageKey
+    ? data.practices[currentPracticeStorageKey] ?? getStoredDeckPractice(data.practices, activeDeck)
+    : undefined;
   const activePracticeDeck = useMemo(() => buildPracticeDeckSnapshot(activeDeck, activePractice), [activeDeck, activePractice]);
   const deckPractice = useMemo(() => getStoredDeckPractice(data.practices, activeDeck), [activeDeck, data.practices]);
   const favoritePractice = data.practices[getFavoritePracticeKey(activeDeck?.id ?? ALL_FAVORITES_PRACTICE_DECK_ID)];
@@ -1739,7 +1741,10 @@ function App() {
     clearAutoAdvanceTimers();
     const deck = deckId === ALL_DAILY_REVIEW_DECK_ID ? allDailyReviewDeck : data.decks.find((deck) => deck.id === deckId) ?? null;
     const isHardDeck = isHardQuestionDeck(deck);
-    const practiceStorageKey = getStoredDeckPracticeKey(data.practices, deck) ?? deckId;
+    const canonicalPracticeStorageKey = getDeckPracticeStorageKey(deck) ?? deckId;
+    const practiceStorageKey = isHardDeck
+      ? canonicalPracticeStorageKey
+      : getStoredDeckPracticeKey(data.practices, deck) ?? canonicalPracticeStorageKey;
     const resolvedView = isHardQuestionDeck(deck) && !HARD_DECK_NAV_KEYS.has(nextView)
       ? "practice"
       : isAllDailyReviewDeck(deck) && nextView !== "review"
@@ -1749,6 +1754,9 @@ function App() {
       const hardPracticeKey = getDeckPracticeStorageKey(deck);
       if (hardPracticeKey && data.practices[hardPracticeKey]?.submittedAt) discardSubmittedPractice(hardPracticeKey);
       if (data.practices[deckId]?.submittedAt) discardSubmittedPractice(deckId);
+    }
+    if (isHardDeck && data.practices[deckId]) {
+      setData((previous) => ({ ...previous, practices: migrateHardPracticeStorage(previous.practices) }));
     }
     setActiveDeckId(deckId);
     setActivePracticeStorageKey(practiceStorageKey);
@@ -2686,14 +2694,16 @@ function App() {
       }));
       return;
     }
-    if (activePractice.scope === "mistakes" || activePractice.scope === "favorites") {
+    if (activePractice.scope === "mistakes" || activePractice.scope === "favorites" || isHardPractice) {
       setMistakePracticeFinishDialogOpen(true);
       return;
     }
   }
 
   function continuePracticeFromWrong() {
-    if (!activePractice || (activePractice.scope !== "mistakes" && activePractice.scope !== "favorites")) return;
+    if (!activePractice) return;
+    const isHardPractice = activePractice.scope !== "mistakes" && activePractice.scope !== "favorites" && isHardQuestionDeck(activePracticeDeck);
+    if (!isHardPractice && activePractice.scope !== "mistakes" && activePractice.scope !== "favorites") return;
     const scope = activePractice.scope, questionIds = getPracticeWrongQuestionIds(activePractice, new Set(dataRef.current.slashedQuestionIds ?? []));
     if (questionIds.length === 0) { setStatus("本轮没有需要继续刷的错题"); return; }
     if (scope === "favorites") startFavoritePractice(true, questionIds);
@@ -2702,11 +2712,13 @@ function App() {
 
   function exitPracticeFinish() {
     const scope = activePractice?.scope;
+    const isHardPractice = Boolean(activePractice && scope !== "mistakes" && scope !== "favorites" && isHardQuestionDeck(activePracticeDeck));
+    if (isHardPractice && currentPracticeStorageKey) discardSubmittedPractice(currentPracticeStorageKey);
     setMistakePracticeFinishDialogOpen(false);
     setActivePracticeStorageKey(getDeckPracticeStorageKey(activeDeck) ?? activeDeckId);
     setAnswerProgressCollapsed(true);
-    setView(scope === "favorites" ? "favorites" : "mistakes");
-    setStatus(scope === "favorites" ? "已退出收藏刷题" : "已退出错题刷题");
+    setView(scope === "favorites" ? "favorites" : isHardPractice ? "practice" : "mistakes");
+    setStatus(scope === "favorites" ? "已退出收藏刷题" : isHardPractice ? "已退出重难题刷题" : "已退出错题刷题");
   }
 
   function renderMain() {
@@ -3093,10 +3105,10 @@ function App() {
           onClose={() => setDailyReviewFinishDialogOpen(false)}
         />
       )}
-      {mistakePracticeFinishDialogOpen && activePractice && (activePractice.scope === "mistakes" || activePractice.scope === "favorites") && (
+      {mistakePracticeFinishDialogOpen && activePractice && (activePractice.scope === "mistakes" || activePractice.scope === "favorites" || isHardQuestionDeck(activePracticeDeck)) && (
         <MistakePracticeFinishDialog
           practice={activePractice}
-          label={activePractice.scope === "favorites" ? "收藏刷题" : "错题刷题"}
+          label={activePractice.scope === "favorites" ? "收藏刷题" : activePractice.scope === "mistakes" ? "错题刷题" : "重难题刷题"}
           excludedQuestionIds={slashedQuestionSet}
           onContinueWrong={continuePracticeFromWrong}
           onExit={exitPracticeFinish}

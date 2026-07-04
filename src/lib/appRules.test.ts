@@ -21,9 +21,11 @@ import {
   recordQuestionResultInData,
   recordDailyStudyResult,
   resetDeckProgressForDeck,
-  shouldUsePersistentData
+  shouldUsePersistentData,
+  upsertDeck
 } from "./appRules";
 import { emptyData } from "./storage";
+import { HARD_QUESTION_PRACTICE_KEY, migrateHardPracticeStorage } from "./practiceStorageKey";
 
 function makeQuestion(id: string, type: QuestionType = "单选题"): Question {
   return {
@@ -452,19 +454,78 @@ describe("hard question deck rules", () => {
       },
       autoHardQuestionIds: ["q1", "q2"],
       practices: {
-        deck_hard_low_accuracy: practice
+        [HARD_QUESTION_PRACTICE_KEY]: practice
       }
     };
 
     const next = recordQuestionResultInData(data, "q1", true, "2026-07-03T10:02:00.000Z");
     const liveHardDeck = next.decks.find((deck) => deck.id === "deck_hard_low_accuracy") ?? null;
-    const snapshotDeck = buildPracticeDeckSnapshot(liveHardDeck, next.practices.deck_hard_low_accuracy);
+    const snapshotDeck = buildPracticeDeckSnapshot(liveHardDeck, next.practices[HARD_QUESTION_PRACTICE_KEY]);
 
     expect(isQuestionInHardDeck(next, "q1")).toBe(false);
     expect(liveHardDeck?.questionIds).toEqual(["q2"]);
-    expect(next.practices.deck_hard_low_accuracy.questionIds).toEqual(["q1", "q2"]);
+    expect(next.practices[HARD_QUESTION_PRACTICE_KEY].questionIds).toEqual(["q1", "q2"]);
     expect(snapshotDeck?.questionIds).toEqual(["q1", "q2"]);
     expect(isHardQuestionDeck(snapshotDeck)).toBe(true);
+  });
+
+  it("migrates legacy hard-question practice storage to the canonical practice key", () => {
+    const practice: PracticeState = {
+      deckId: "deck_hard_low_accuracy",
+      scope: "deck",
+      questionIds: ["q1"],
+      currentIndex: 0,
+      mode: "review",
+      shuffleOptions: true,
+      shuffleQuestions: true,
+      answers: {},
+      startedAt: "2026-07-03T10:00:00.000Z",
+      updatedAt: "2026-07-03T10:00:00.000Z"
+    };
+
+    const migrated = migrateHardPracticeStorage({ deck_hard_low_accuracy: practice });
+
+    expect(migrated.deck_hard_low_accuracy).toBeUndefined();
+    expect(migrated[HARD_QUESTION_PRACTICE_KEY]).toMatchObject({
+      deckId: "deck_hard_low_accuracy",
+      questionIds: ["q1"],
+      currentIndex: 0,
+      mode: "answer",
+      shuffleOptions: false,
+      shuffleQuestions: false
+    });
+  });
+
+  it("does not delete a legacy hard-question practice while refreshing the hard deck", () => {
+    const q1 = makeQuestion("q1");
+    const q2 = makeQuestion("q2");
+    const practice: PracticeState = {
+      deckId: "deck_hard_low_accuracy",
+      scope: "deck",
+      questionIds: ["q1", "q2"],
+      currentIndex: 1,
+      mode: "answer",
+      answers: { q1: ["A"] },
+      results: { q1: true },
+      startedAt: "2026-07-03T10:00:00.000Z",
+      updatedAt: "2026-07-03T10:01:00.000Z"
+    };
+    const data: AppData = {
+      ...emptyData,
+      questions: [q1, q2],
+      decks: [
+        { id: "deck_hard_low_accuracy", name: "重难题", questionIds: ["q1", "q2"], createdAt: "2026-06-28T00:00:00.000Z", updatedAt: "2026-06-28T00:00:00.000Z" }
+      ],
+      practices: {
+        deck_hard_low_accuracy: practice
+      }
+    };
+
+    const refreshed = upsertDeck(data, "deck_hard_low_accuracy", "重难题", [q2]);
+
+    expect(refreshed.practices.deck_hard_low_accuracy).toBeUndefined();
+    expect(refreshed.practices[HARD_QUESTION_PRACTICE_KEY]?.questionIds).toEqual(["q1", "q2"]);
+    expect(refreshed.decks.find((deck) => deck.id === "deck_hard_low_accuracy")?.questionIds).toEqual(["q2"]);
   });
 });
 

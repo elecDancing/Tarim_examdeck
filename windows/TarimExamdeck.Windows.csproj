@@ -8,8 +8,8 @@
     <AssemblyName>TarimExamdeck</AssemblyName>
     <RootNamespace>TarimExamdeck.Windows</RootNamespace>
     <Version>1.0.39</Version>
-    <Company>Tarim Examdeck</Company>
-    <Product>塔里木刷题王</Product>
+    <Company>Tarim ExamDeck</Company>
+    <Product>Tarim ExamDeck</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>

@@ -1,14 +1,14 @@
 Unicode true
 !include "MUI2.nsh"
 
-!define APP_NAME "塔里木刷题王"
+!define APP_NAME "Tarim ExamDeck"
 !ifndef APP_VERSION
 !define APP_VERSION "1.0.39"
 !endif
 !ifndef SETUP_OUTFILE
 !define SETUP_OUTFILE "..\..\release\tarim-examdeck-windows-setup-v${APP_VERSION}.exe"
 !endif
-!define APP_PUBLISHER "Tarim Examdeck"
+!define APP_PUBLISHER "Tarim ExamDeck"
 !define APP_EXE "TarimExamdeck.exe"
 !define APP_DIR "TarimExamdeck"
 
@@ -32,7 +32,7 @@ ShowUninstDetails show
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
-!insertmacro MUI_LANGUAGE "SimpChinese"
+!insertmacro MUI_LANGUAGE "English"
 
 Section "Install"
   SetOutPath "$INSTDIR"
@@ -52,7 +52,7 @@ Section "Install"
 
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
   CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\卸载 ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
   CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
 SectionEnd
 

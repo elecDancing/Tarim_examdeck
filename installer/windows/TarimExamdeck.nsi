@@ -11,6 +11,7 @@ Unicode true
 !define APP_PUBLISHER "Tarim ExamDeck"
 !define APP_EXE "TarimExamdeck.exe"
 !define APP_DIR "TarimExamdeck"
+!define APP_ICON "AppIcon.ico"
 
 Name "${APP_NAME}"
 OutFile "${SETUP_OUTFILE}"
@@ -39,6 +40,7 @@ Section "Install"
   RMDir /r "$INSTDIR"
   SetOutPath "$INSTDIR"
   File /r "..\..\release\windows\publish\*.*"
+  File "/oname=${APP_ICON}" "..\..\windows\Assets\AppIcon.ico"
 
   WriteRegStr HKCU "Software\${APP_DIR}" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_DIR}" "DisplayName" "${APP_NAME}"
@@ -51,9 +53,9 @@ Section "Install"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
-  CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_ICON}" 0
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\${APP_ICON}" 0
+  CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_ICON}" 0
 SectionEnd
 
 Section "Uninstall"

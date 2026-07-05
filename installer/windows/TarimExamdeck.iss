@@ -18,6 +18,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\..\release
 OutputBaseFilename={#OutputBaseFilename}
+SetupIconFile=..\..\windows\Assets\AppIcon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -32,10 +33,11 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 Source: "..\..\release\windows\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\windows\Assets\AppIcon.ico"; DestDir: "{app}"; DestName: "AppIcon.ico"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\AppIcon.ico"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\AppIcon.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent

@@ -312,8 +312,37 @@ async function writeIndexedDbData(data: AppData): Promise<void> {
 }
 
 function buildStaticSignature(data: StaticData) {
-  const deckSignature = data.decks.map((deck) => `${deck.id}:${deck.updatedAt}:${deck.questionIds.length}`).join("|");
-  return `${data.questions.length}|${deckSignature}|${data.seedImported ? 1 : 0}`;
+  const deckSignature = data.decks.map((deck) => `${deck.id}:${deck.updatedAt}:${deck.questionIds.join(",")}`).join("|");
+  let questionHash = 5381;
+  data.questions.forEach((question) => {
+    questionHash = hashPart(questionHash, question.id);
+    questionHash = hashPart(questionHash, question.uid);
+    questionHash = hashPart(questionHash, question.type);
+    questionHash = hashPart(questionHash, question.stemHtml);
+    questionHash = hashPart(questionHash, question.stemText);
+    questionHash = hashPart(questionHash, (question.imageUrls ?? []).join(","));
+    question.options.forEach((option) => {
+      questionHash = hashPart(questionHash, option.key);
+      questionHash = hashPart(questionHash, option.text);
+      questionHash = hashPart(questionHash, option.html);
+    });
+    questionHash = hashPart(questionHash, question.answerKeys.join(","));
+    questionHash = hashPart(questionHash, question.answerText);
+    questionHash = hashPart(questionHash, question.explanationHtml);
+    questionHash = hashPart(questionHash, question.tags.join(","));
+    questionHash = hashPart(questionHash, question.source);
+    questionHash = hashPart(questionHash, question.rawFront);
+    questionHash = hashPart(questionHash, question.rawBack);
+  });
+  return `${data.questions.length}|${(questionHash >>> 0).toString(36)}|${deckSignature}|${data.seedImported ? 1 : 0}`;
+}
+
+function hashPart(hash: number, value: string | undefined) {
+  const text = value ?? "";
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) + hash) ^ text.charCodeAt(index);
+  }
+  return ((hash << 5) + hash) ^ 31;
 }
 
 export async function exportData(data: AppData) {

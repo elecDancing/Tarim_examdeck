@@ -89,7 +89,7 @@ public partial class MainWindow : Window
             var distPath = ResolveDistPath();
             if (!Directory.Exists(distPath))
             {
-                MessageBox.Show($"未找到桌面版资源目录：{distPath}", "塔里木刷题王", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"未找到桌面版资源目录：{distPath}", "Tarim ExamDeck", MessageBoxButton.OK, MessageBoxImage.Error);
                 Close();
                 return;
             }
@@ -115,8 +115,8 @@ public partial class MainWindow : Window
         {
             WriteLog(error.ToString());
             MessageBox.Show(
-                $"塔里木刷题王启动失败。\n\n常见原因：Windows 缺少 Microsoft Edge WebView2 Runtime，或本机 WebView2 环境损坏。\n\n错误信息：{error.Message}\n\n日志位置：{LogPath}",
-                "塔里木刷题王",
+                $"Tarim ExamDeck 启动失败。\n\n常见原因：Windows 缺少 Microsoft Edge WebView2 Runtime，或本机 WebView2 环境损坏。\n\n错误信息：{error.Message}\n\n日志位置：{LogPath}",
+                "Tarim ExamDeck",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             Close();

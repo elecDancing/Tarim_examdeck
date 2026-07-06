@@ -37,9 +37,8 @@ const QUICK_EXAM_TOTAL = 100;
 const DAILY_REVIEW_LIMIT = 1000;
 const MISTAKE_CLEAR_CORRECT_STREAK = 3;
 const AUTO_SLASH_CORRECT_STREAK = 5;
-const BOOTSTRAP_PROGRESS_MARKER_KEY = "examdeck:bootstrap-progress:2026-06-29-18-25-00";
+const BOOTSTRAP_PROGRESS_MARKER_KEY = "examdeck:bootstrap-progress:2026-07-06-17-decks";
 const ALL_DAILY_REVIEW_DECK_ID = "deck_all_daily_review";
-const LIGHT_HYDROCARBON_DECK_ID = "deck_light_hydrocarbon_senior_technician";
 const HARD_QUESTION_DECK_ID = "deck_hard_low_accuracy";
 const HARD_QUESTION_DECK_NAME = "重难题";
 const HARD_QUESTION_RATE_THRESHOLD = 0.5;
@@ -86,11 +85,14 @@ const BUNDLED_SAFETY_IMAGE_PATHS: Record<string, string> = {
   "0993": "/question-images/safety/safety-0993-image-28.png"
 };
 const SEED_DECKS: SeedDeckConfig[] = [
+  { id: "deck_jodwox", name: "轻烃操作工技师", file: "light-hydrocarbon-technician.xlsx" },
+  { id: "deck_jogfxy", name: "轻烃操作工高级", file: "light-hydrocarbon-senior.xlsx" },
+  { id: "deck_jo6dcz", name: "轻烃操作工中级", file: "light-hydrocarbon-intermediate.xlsx" },
+  { id: "deck_jo5no3", name: "轻烃操作工初级", file: "light-hydrocarbon-junior.xlsx" },
   { id: "deck_gas_purification_junior", name: "天然气净化工初级工", file: "gas-purification-junior.xlsx" },
   { id: "deck_gas_purification_intermediate", name: "天然气净化工中级工", file: "gas-purification-intermediate.xlsx" },
   { id: "deck_gas_purification_senior", name: "天然气净化工高级工", file: "gas-purification-senior.xlsx" },
   { id: "deck_tech", name: "天然气净化工技师", file: "tech.xlsx", source: "技师题" },
-  { id: LIGHT_HYDROCARBON_DECK_ID, name: "轻烃操作工高级工及技师", file: "light-hydrocarbon-senior-technician.xlsx" },
   { id: "deck_oilfield_risk_control", name: "油气田开发危害因素辨识与风险防控", file: "oilfield-risk-control.xlsx" },
   { id: "deck_oil_production_junior", name: "采油工初级", file: "oil-production-junior.xlsx" },
   { id: "deck_oil_production_intermediate", name: "采油工中级", file: "oil-production-intermediate.xlsx" },
@@ -707,9 +709,61 @@ export function shouldImportBootstrapProgress(current: AppData, bootstrap: AppDa
   if (current.questions.length === 0 || current.decks.length === 0) return true;
   if (current.questions.length < bootstrap.questions.length) return true;
   if (current.decks.length < bootstrap.decks.length) return true;
+  if (!areBootstrapSeedDecksCurrent(current, bootstrap)) return true;
   const currentStatsCount = Object.keys(current.stats ?? {}).length;
   const bootstrapStatsCount = Object.keys(bootstrap.stats ?? {}).length;
   return current.questions.length === bootstrap.questions.length && currentStatsCount < bootstrapStatsCount;
+}
+
+function areBootstrapSeedDecksCurrent(current: AppData, bootstrap: AppData) {
+  const currentDeckById = new Map(current.decks.map((deck) => [deck.id, deck]));
+  const bootstrapDeckById = new Map(bootstrap.decks.map((deck) => [deck.id, deck]));
+  const currentQuestionById = new Map(current.questions.map((question) => [question.id, question]));
+  const bootstrapQuestionById = new Map(bootstrap.questions.map((question) => [question.id, question]));
+
+  for (const seed of SEED_DECKS) {
+    const currentDeck = currentDeckById.get(seed.id);
+    const bootstrapDeck = bootstrapDeckById.get(seed.id);
+    if (!currentDeck || !bootstrapDeck) return false;
+    if (currentDeck.questionIds.length !== bootstrapDeck.questionIds.length) return false;
+
+    const currentByImportKey = new Map<string, Question>();
+    currentDeck.questionIds.forEach((questionId) => {
+      const question = currentQuestionById.get(questionId);
+      if (question) currentByImportKey.set(buildQuestionImportKey(question), question);
+    });
+
+    for (const bootstrapQuestionId of bootstrapDeck.questionIds) {
+      const bootstrapQuestion = bootstrapQuestionById.get(bootstrapQuestionId);
+      if (!bootstrapQuestion) return false;
+      const currentQuestion = currentByImportKey.get(buildQuestionImportKey(bootstrapQuestion));
+      if (!currentQuestion || !areQuestionStaticFieldsEqual(currentQuestion, bootstrapQuestion)) return false;
+    }
+  }
+
+  return true;
+}
+
+function areQuestionStaticFieldsEqual(left: Question, right: Question) {
+  return left.uid === right.uid
+    && left.type === right.type
+    && left.stemHtml === right.stemHtml
+    && left.stemText === right.stemText
+    && left.answerKeys.join(",") === right.answerKeys.join(",")
+    && left.answerText === right.answerText
+    && left.explanationHtml === right.explanationHtml
+    && left.source === right.source
+    && left.rawFront === right.rawFront
+    && left.rawBack === right.rawBack
+    && (left.imageUrls ?? []).join(",") === (right.imageUrls ?? []).join(",")
+    && left.options.length === right.options.length
+    && left.options.every((option, index) => {
+      const other = right.options[index];
+      return other
+        && option.key === other.key
+        && option.text === other.text
+        && option.html === other.html;
+    });
 }
 
 export function shouldUsePersistentData(stored: AppData, current: AppData) {
@@ -1391,11 +1445,13 @@ function areSameRecord<T>(left: Record<string, T>, right: Record<string, T>) {
 
 export function areSeedDecksImported(data: AppData) {
   const byId = new Map(data.decks.map((deck) => [deck.id, deck]));
-  return SEED_DECKS.every((seed) => (byId.get(seed.id)?.questionIds.length ?? 0) > 0)
-    && isLightHydrocarbonSeedCurrent(data, byId.get(LIGHT_HYDROCARBON_DECK_ID) ?? null);
+  return SEED_DECKS.every((seed) => {
+    const deck = byId.get(seed.id) ?? null;
+    return (deck?.questionIds.length ?? 0) > 0 && isSeedDeckCurrent(data, deck);
+  });
 }
 
-export function isLightHydrocarbonSeedCurrent(data: AppData, deck: Deck | null) {
+export function isSeedDeckCurrent(data: AppData, deck: Deck | null) {
   if (!deck || deck.questionIds.length === 0) return false;
   const residuePattern = /轻烃装置操作工（下册）|理论知识练习题|>>/;
   const questions = getDeckQuestions(data.questions, deck);

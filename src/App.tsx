@@ -154,7 +154,6 @@ import {
   syncHardQuestionDeckForCurrentRules,
   areQuestionIdListsEqual,
   areSeedDecksImported,
-  isLightHydrocarbonSeedCurrent,
   orderSeedDecks,
   mergeImportReports,
   buildDeckId,
@@ -259,14 +258,13 @@ const DAILY_REVIEW_LIMIT = 1000;
 const MISTAKE_CLEAR_CORRECT_STREAK = 3;
 const AUTO_SLASH_CORRECT_STREAK = 5;
 const ALL_DAILY_REVIEW_DECK_ID = "deck_all_daily_review";
-const LIGHT_HYDROCARBON_DECK_ID = "deck_light_hydrocarbon_senior_technician";
 const HARD_QUESTION_DECK_ID = "deck_hard_low_accuracy";
 const HARD_QUESTION_DECK_NAME = "重难题";
 const HARD_QUESTION_RATE_THRESHOLD = 0.5;
 const HARD_QUESTION_MIN_ATTEMPTS = 2;
 const HARD_QUESTION_RECOVERY_CORRECT_STREAK = 2;
 const MANUAL_HARD_QUESTION_BLOCK_RATE_THRESHOLD = 0.75;
-const BOOTSTRAP_PROGRESS_MARKER_KEY = "examdeck:bootstrap-progress:2026-06-29-18-25-00";
+const BOOTSTRAP_PROGRESS_MARKER_KEY = "examdeck:bootstrap-progress:2026-07-06-17-decks";
 const QUESTION_BANK_EXPORT_DISABLED_MESSAGE = "由于版权风险原因，暂不支持导出题库，需要题库请在坦途联系软件作者！";
 const DISABLE_QUESTION_BANK_EXPORT = import.meta.env.VITE_DISABLE_QUESTION_BANK_EXPORT === "1";
 const IS_WINDOWS = navigator.platform.toLowerCase().includes("win");
@@ -311,11 +309,14 @@ const BUNDLED_SAFETY_IMAGE_PATHS: Record<string, string> = {
   "0993": "/question-images/safety/safety-0993-image-28.png"
 };
 const SEED_DECKS: SeedDeckConfig[] = [
+  { id: "deck_jodwox", name: "轻烃操作工技师", file: "light-hydrocarbon-technician.xlsx" },
+  { id: "deck_jogfxy", name: "轻烃操作工高级", file: "light-hydrocarbon-senior.xlsx" },
+  { id: "deck_jo6dcz", name: "轻烃操作工中级", file: "light-hydrocarbon-intermediate.xlsx" },
+  { id: "deck_jo5no3", name: "轻烃操作工初级", file: "light-hydrocarbon-junior.xlsx" },
   { id: "deck_gas_purification_junior", name: "天然气净化工初级工", file: "gas-purification-junior.xlsx" },
   { id: "deck_gas_purification_intermediate", name: "天然气净化工中级工", file: "gas-purification-intermediate.xlsx" },
   { id: "deck_gas_purification_senior", name: "天然气净化工高级工", file: "gas-purification-senior.xlsx" },
   { id: "deck_tech", name: "天然气净化工技师", file: "tech.xlsx", source: "技师题" },
-  { id: LIGHT_HYDROCARBON_DECK_ID, name: "轻烃操作工高级工及技师", file: "light-hydrocarbon-senior-technician.xlsx" },
   { id: "deck_oilfield_risk_control", name: "油气田开发危害因素辨识与风险防控", file: "oilfield-risk-control.xlsx" },
   { id: "deck_oil_production_junior", name: "采油工初级", file: "oil-production-junior.xlsx" },
   { id: "deck_oil_production_intermediate", name: "采油工中级", file: "oil-production-intermediate.xlsx" },
@@ -1019,6 +1020,18 @@ function App() {
 
   async function importSeed() {
     try {
+      setStatus("正在恢复内置固定题库");
+      try {
+        const bootstrapData = await loadBootstrapSeedData(import.meta.env.BASE_URL);
+        const restored = restoreSeedDecksFromBootstrap(dataRef.current, bootstrapData, SEED_DECKS);
+        dataRef.current = restored.data;
+        setData(restored.data);
+        setStatus(`已恢复/更新 ${restored.restoredCount} 个固定题库，共 ${restored.data.questions.length} 道题`);
+        return;
+      } catch {
+        // 兼容开发环境中的旧 seed Excel 导入流程。
+      }
+
       setStatus("正在导入内置 Excel 题库");
       const seedResults: { seed: SeedDeckConfig; result: Awaited<ReturnType<typeof parseExcelWorkbook>> }[] = [];
       for (const seed of SEED_DECKS) {

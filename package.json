@@ -1,6 +1,6 @@
 {
   "name": "examdeck",
-  "version": "1.0.42",
+  "version": "1.0.43",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,7 @@
     "check:import": "node scripts/check-import.mjs",
     "question-bank:rebuild": "node scripts/rebuild-bootstrap-progress.mjs",
     "android:pack": "bash scripts/build-android-app.sh",
-    "desktop:pack": "npm run build && bash scripts/build-mac-app.sh",
+    "desktop:pack": "bash scripts/build-mac-app.sh",
     "desktop:pack:windows": "powershell -ExecutionPolicy Bypass -File scripts/build-windows-app.ps1",
     "desktop:open": "open release/塔里木刷题王.app"
   },

@@ -4,59 +4,96 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="塔里木刷题王"
 RELEASE_DIR="${ROOT_DIR}/release"
-APP_DIR="${RELEASE_DIR}/${APP_NAME}.app"
-CONTENTS_DIR="${APP_DIR}/Contents"
-MACOS_DIR="${CONTENTS_DIR}/MacOS"
-RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 APP_VERSION="$(node -p "require('${ROOT_DIR}/package.json').version")"
 APP_ARCH="$(uname -m)"
-ZIP_PATH="${RELEASE_DIR}/tarim-examdeck-macos-${APP_ARCH}-v${APP_VERSION}.zip"
-DMG_STAGING_DIR="${RELEASE_DIR}/dmg-staging"
-DMG_PATH="${RELEASE_DIR}/tarim-examdeck-macos-${APP_ARCH}-v${APP_VERSION}.dmg"
+BUILD_ROOT="${RELEASE_DIR}/macos-build"
 
-if [[ ! -d "${ROOT_DIR}/dist" ]]; then
-  echo "dist 不存在，请先运行 npm run build" >&2
-  exit 1
-fi
+build_web() {
+  local variant="$1"
 
-rm -rf "${APP_DIR}"
-mkdir -p "${MACOS_DIR}" "${RESOURCES_DIR}"
+  if [[ "${variant}" == "user" ]]; then
+    echo "==> Building macOS user web assets"
+    VITE_DISABLE_QUESTION_BANK_EXPORT=1 npm run build
+  else
+    echo "==> Building macOS developer web assets"
+    npm run build
+  fi
+}
 
-swiftc \
-  "${ROOT_DIR}/macos/TarimExamdeckApp.swift" \
-  -o "${MACOS_DIR}/${APP_NAME}" \
-  -framework Cocoa \
-  -framework WebKit
+package_app() {
+  local variant="$1"
+  local artifact_name="$2"
+  local bundle_name="${APP_NAME}"
 
-cp "${ROOT_DIR}/macos/Info.plist" "${CONTENTS_DIR}/Info.plist"
-if [[ -f "${ROOT_DIR}/macos/AppIcon.icns" ]]; then
-  cp "${ROOT_DIR}/macos/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
-fi
-rsync -a --delete "${ROOT_DIR}/dist/" "${RESOURCES_DIR}/dist/"
-chmod -R u+rwX,go+rX "${RESOURCES_DIR}/dist"
+  if [[ "${variant}" == "developer" ]]; then
+    bundle_name="Tarim ExamDeck Developer"
+  fi
 
-chmod +x "${MACOS_DIR}/${APP_NAME}"
+  local app_dir="${BUILD_ROOT}/${variant}/${bundle_name}.app"
+  local release_app_dir="${RELEASE_DIR}/${bundle_name}.app"
+  local contents_dir="${app_dir}/Contents"
+  local macos_dir="${contents_dir}/MacOS"
+  local resources_dir="${contents_dir}/Resources"
+  local zip_path="${RELEASE_DIR}/${artifact_name}.zip"
+  local dmg_staging_dir="${BUILD_ROOT}/${variant}/dmg-staging"
+  local dmg_path="${RELEASE_DIR}/${artifact_name}.dmg"
 
-if command -v codesign >/dev/null 2>&1; then
-  codesign --force --deep --sign - "${APP_DIR}" >/dev/null
-fi
+  rm -rf "${BUILD_ROOT:?}/${variant}"
+  mkdir -p "${macos_dir}" "${resources_dir}"
 
-rm -f "${ZIP_PATH}"
-ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "${ZIP_PATH}"
+  swiftc \
+    "${ROOT_DIR}/macos/TarimExamdeckApp.swift" \
+    -o "${macos_dir}/${APP_NAME}" \
+    -framework Cocoa \
+    -framework WebKit
 
-rm -rf "${DMG_STAGING_DIR}"
-mkdir -p "${DMG_STAGING_DIR}"
-cp -R "${APP_DIR}" "${DMG_STAGING_DIR}/"
-ln -s /Applications "${DMG_STAGING_DIR}/Applications"
-rm -f "${DMG_PATH}"
-hdiutil create \
-  -volname "${APP_NAME}" \
-  -srcfolder "${DMG_STAGING_DIR}" \
-  -ov \
-  -format UDZO \
-  "${DMG_PATH}" >/dev/null
-rm -rf "${DMG_STAGING_DIR}"
+  cp "${ROOT_DIR}/macos/Info.plist" "${contents_dir}/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${APP_VERSION}" "${contents_dir}/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${APP_VERSION}" "${contents_dir}/Info.plist"
+  if [[ "${variant}" == "developer" ]]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Tarim ExamDeck Developer" "${contents_dir}/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName Tarim ExamDeck Developer" "${contents_dir}/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.tarim.examdeck.developer" "${contents_dir}/Info.plist"
+  fi
+  if [[ -f "${ROOT_DIR}/macos/AppIcon.icns" ]]; then
+    cp "${ROOT_DIR}/macos/AppIcon.icns" "${resources_dir}/AppIcon.icns"
+  fi
+  rsync -a --delete "${ROOT_DIR}/dist/" "${resources_dir}/dist/"
+  chmod -R u+rwX,go+rX "${resources_dir}/dist"
+  chmod +x "${macos_dir}/${APP_NAME}"
 
-echo "已生成：${APP_DIR}"
-echo "已生成：${ZIP_PATH}"
-echo "已生成：${DMG_PATH}"
+  if command -v codesign >/dev/null 2>&1; then
+    codesign --force --deep --sign - "${app_dir}" >/dev/null
+  fi
+
+  rm -rf "${release_app_dir}"
+  cp -R "${app_dir}" "${release_app_dir}"
+
+  rm -f "${zip_path}"
+  ditto -c -k --sequesterRsrc --keepParent "${app_dir}" "${zip_path}"
+
+  rm -rf "${dmg_staging_dir}"
+  mkdir -p "${dmg_staging_dir}"
+  cp -R "${app_dir}" "${dmg_staging_dir}/"
+  ln -s /Applications "${dmg_staging_dir}/Applications"
+  rm -f "${dmg_path}"
+  hdiutil create \
+    -volname "${bundle_name}" \
+    -srcfolder "${dmg_staging_dir}" \
+    -ov \
+    -format UDZO \
+    "${dmg_path}" >/dev/null
+  rm -rf "${dmg_staging_dir}"
+
+  echo "已生成：${release_app_dir}"
+  echo "已生成：${zip_path}"
+  echo "已生成：${dmg_path}"
+}
+
+mkdir -p "${RELEASE_DIR}"
+
+build_web "user"
+package_app "user" "tarim-examdeck-macos-${APP_ARCH}-v${APP_VERSION}"
+
+build_web "developer"
+package_app "developer" "tarim-examdeck-macos-developer-v${APP_VERSION}"

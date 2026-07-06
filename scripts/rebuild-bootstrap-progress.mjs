@@ -3,14 +3,17 @@ import path from "node:path";
 import JSZip from "jszip";
 
 const root = process.cwd();
-const exportedAt = "2026-06-29T17:46:00.000Z";
+const exportedAt = new Date().toISOString();
 
 const seedDecks = [
+  { id: "deck_jodwox", name: "轻烃操作工技师", file: "light-hydrocarbon-technician.xlsx" },
+  { id: "deck_jogfxy", name: "轻烃操作工高级", file: "light-hydrocarbon-senior.xlsx" },
+  { id: "deck_jo6dcz", name: "轻烃操作工中级", file: "light-hydrocarbon-intermediate.xlsx" },
+  { id: "deck_jo5no3", name: "轻烃操作工初级", file: "light-hydrocarbon-junior.xlsx" },
   { id: "deck_gas_purification_junior", name: "天然气净化工初级工", file: "gas-purification-junior.xlsx" },
   { id: "deck_gas_purification_intermediate", name: "天然气净化工中级工", file: "gas-purification-intermediate.xlsx" },
   { id: "deck_gas_purification_senior", name: "天然气净化工高级工", file: "gas-purification-senior.xlsx" },
   { id: "deck_tech", name: "天然气净化工技师", file: "tech.xlsx", source: "技师题" },
-  { id: "deck_light_hydrocarbon_senior_technician", name: "轻烃操作工高级工及技师", file: "light-hydrocarbon-senior-technician.xlsx" },
   { id: "deck_oilfield_risk_control", name: "油气田开发危害因素辨识与风险防控", file: "oilfield-risk-control.xlsx" },
   { id: "deck_oil_production_junior", name: "采油工初级", file: "oil-production-junior.xlsx" },
   { id: "deck_oil_production_intermediate", name: "采油工中级", file: "oil-production-intermediate.xlsx" },

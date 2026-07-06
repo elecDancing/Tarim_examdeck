@@ -53,6 +53,13 @@ npm run desktop:pack:windows
 npm run android:pack
 ```
 
+`npm run desktop:pack` 会同时生成 macOS 用户版和开发者版：
+
+```text
+release/tarim-examdeck-macos-arm64-v<version>.dmg
+release/tarim-examdeck-macos-developer-v<version>.dmg
+```
+
 ### 从 Excel 统一重建
 
 1. 修改 `seed-source/*.xlsx`。
@@ -66,10 +73,10 @@ npm run question-bank:rebuild
 
 ## 用户版限制
 
-Windows 和 Android 用户版构建脚本会设置：
+macOS、Windows 和 Android 用户版构建脚本会设置：
 
 ```text
 VITE_DISABLE_QUESTION_BANK_EXPORT=1
 ```
 
-因此用户版不会导出题库，也不会写回内置题库源。这个限制不影响学习进度的手动导入导出。
+因此用户版不会导出题库，也不会写回内置题库源。macOS 开发者版不设置这个变量，可以导出题库并写回内置题库源。这个限制不影响学习进度的手动导入导出。

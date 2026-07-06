@@ -92,7 +92,7 @@ npm run check:import
 
 | 平台 | 命令 | 产物 |
 | --- | --- | --- |
-| macOS arm64 | `npm run desktop:pack` | `release/塔里木刷题王.app` / `.dmg` |
+| macOS arm64 | `npm run desktop:pack` | `release/tarim-examdeck-macos-arm64-v<version>.dmg` / `release/tarim-examdeck-macos-developer-v<version>.dmg` |
 | Windows 10/11 | `npm run desktop:pack:windows` | `release/塔里木刷题王-setup.exe` |
 | Android | `npm run android:pack` | `.apk` 安装包 |
 

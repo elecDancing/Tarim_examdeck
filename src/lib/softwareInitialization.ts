@@ -12,7 +12,7 @@ import {
 export type InitializationSeedDeck = {
   id: string;
   name: string;
-  file: string;
+  file?: string;
   source?: string;
 };
 

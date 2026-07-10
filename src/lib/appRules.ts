@@ -25,7 +25,7 @@ export type ReviewForecastDay = {
 type SeedDeckConfig = {
   id: string;
   name: string;
-  file: string;
+  file?: string;
   source?: string;
 };
 
@@ -39,7 +39,6 @@ const MISTAKE_CLEAR_CORRECT_STREAK = 3;
 const AUTO_SLASH_CORRECT_STREAK = 5;
 const BOOTSTRAP_PROGRESS_MARKER_KEY = "examdeck:bootstrap-progress:2026-06-29-18-25-00";
 const ALL_DAILY_REVIEW_DECK_ID = "deck_all_daily_review";
-const LIGHT_HYDROCARBON_DECK_ID = "deck_light_hydrocarbon_senior_technician";
 const HARD_QUESTION_DECK_ID = "deck_hard_low_accuracy";
 const HARD_QUESTION_DECK_NAME = "重难题";
 const HARD_QUESTION_RATE_THRESHOLD = 0.5;
@@ -86,20 +85,15 @@ const BUNDLED_SAFETY_IMAGE_PATHS: Record<string, string> = {
   "0993": "/question-images/safety/safety-0993-image-28.png"
 };
 const SEED_DECKS: SeedDeckConfig[] = [
+  { id: "deck_jo5no3", name: "轻烃操作工初级" },
+  { id: "deck_jo6dcz", name: "轻烃操作工中级" },
   { id: "deck_gas_purification_junior", name: "天然气净化工初级工", file: "gas-purification-junior.xlsx" },
   { id: "deck_gas_purification_intermediate", name: "天然气净化工中级工", file: "gas-purification-intermediate.xlsx" },
-  { id: "deck_gas_purification_senior", name: "天然气净化工高级工", file: "gas-purification-senior.xlsx" },
-  { id: "deck_tech", name: "天然气净化工技师", file: "tech.xlsx", source: "技师题" },
-  { id: LIGHT_HYDROCARBON_DECK_ID, name: "轻烃操作工高级工及技师", file: "light-hydrocarbon-senior-technician.xlsx" },
-  { id: "deck_oilfield_risk_control", name: "油气田开发危害因素辨识与风险防控", file: "oilfield-risk-control.xlsx" },
   { id: "deck_oil_production_junior", name: "采油工初级", file: "oil-production-junior.xlsx" },
   { id: "deck_oil_production_intermediate", name: "采油工中级", file: "oil-production-intermediate.xlsx" },
-  { id: "deck_oil_production_senior", name: "采油工高级", file: "oil-production-senior.xlsx" },
-  { id: "deck_oil_production_technician", name: "采油工技师", file: "oil-production-technician.xlsx" },
   { id: "deck_gathering_transportation_junior", name: "集输工初级", file: "gathering-transportation-junior.xlsx" },
   { id: "deck_gathering_transportation_intermediate", name: "集输工中级", file: "gathering-transportation-intermediate.xlsx" },
-  { id: "deck_gathering_transportation_senior", name: "集输工高级", file: "gathering-transportation-senior.xlsx" },
-  { id: "deck_gathering_transportation_technician", name: "集输工技师", file: "gathering-transportation-technician.xlsx" }
+  { id: "deck_oilfield_risk_control", name: "油气田开发危害因素辨识与风险防控", file: "oilfield-risk-control.xlsx" }
 ] as const;
 
 export function countByType(questions: Question[]) {
@@ -1391,19 +1385,7 @@ function areSameRecord<T>(left: Record<string, T>, right: Record<string, T>) {
 
 export function areSeedDecksImported(data: AppData) {
   const byId = new Map(data.decks.map((deck) => [deck.id, deck]));
-  return SEED_DECKS.every((seed) => (byId.get(seed.id)?.questionIds.length ?? 0) > 0)
-    && isLightHydrocarbonSeedCurrent(data, byId.get(LIGHT_HYDROCARBON_DECK_ID) ?? null);
-}
-
-export function isLightHydrocarbonSeedCurrent(data: AppData, deck: Deck | null) {
-  if (!deck || deck.questionIds.length === 0) return false;
-  const residuePattern = /轻烃装置操作工（下册）|理论知识练习题|>>/;
-  const questions = getDeckQuestions(data.questions, deck);
-  return !questions.some((question) => (
-    residuePattern.test(question.stemText)
-    || residuePattern.test(question.answerText)
-    || question.options.some((option) => residuePattern.test(option.text))
-  ));
+  return SEED_DECKS.every((seed) => (byId.get(seed.id)?.questionIds.length ?? 0) > 0);
 }
 
 export function orderSeedDecks(data: AppData): AppData {

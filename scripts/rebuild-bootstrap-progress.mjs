@@ -6,20 +6,15 @@ const root = process.cwd();
 const exportedAt = "2026-06-29T17:46:00.000Z";
 
 const seedDecks = [
+  { id: "deck_jo5no3", name: "轻烃操作工初级", bootstrapOnly: true },
+  { id: "deck_jo6dcz", name: "轻烃操作工中级", bootstrapOnly: true },
   { id: "deck_gas_purification_junior", name: "天然气净化工初级工", file: "gas-purification-junior.xlsx" },
   { id: "deck_gas_purification_intermediate", name: "天然气净化工中级工", file: "gas-purification-intermediate.xlsx" },
-  { id: "deck_gas_purification_senior", name: "天然气净化工高级工", file: "gas-purification-senior.xlsx" },
-  { id: "deck_tech", name: "天然气净化工技师", file: "tech.xlsx", source: "技师题" },
-  { id: "deck_light_hydrocarbon_senior_technician", name: "轻烃操作工高级工及技师", file: "light-hydrocarbon-senior-technician.xlsx" },
-  { id: "deck_oilfield_risk_control", name: "油气田开发危害因素辨识与风险防控", file: "oilfield-risk-control.xlsx" },
   { id: "deck_oil_production_junior", name: "采油工初级", file: "oil-production-junior.xlsx" },
   { id: "deck_oil_production_intermediate", name: "采油工中级", file: "oil-production-intermediate.xlsx" },
-  { id: "deck_oil_production_senior", name: "采油工高级", file: "oil-production-senior.xlsx" },
-  { id: "deck_oil_production_technician", name: "采油工技师", file: "oil-production-technician.xlsx" },
   { id: "deck_gathering_transportation_junior", name: "集输工初级", file: "gathering-transportation-junior.xlsx" },
   { id: "deck_gathering_transportation_intermediate", name: "集输工中级", file: "gathering-transportation-intermediate.xlsx" },
-  { id: "deck_gathering_transportation_senior", name: "集输工高级", file: "gathering-transportation-senior.xlsx" },
-  { id: "deck_gathering_transportation_technician", name: "集输工技师", file: "gathering-transportation-technician.xlsx" }
+  { id: "deck_oilfield_risk_control", name: "油气田开发危害因素辨识与风险防控", file: "oilfield-risk-control.xlsx" }
 ];
 
 const bundledSafetyImagePaths = {
@@ -56,8 +51,28 @@ const bundledSafetyImagePaths = {
 const questions = [];
 const decks = [];
 const reports = [];
+const existingBootstrap = readExistingBootstrapData();
 
 for (const seed of seedDecks) {
+  if (seed.bootstrapOnly) {
+    const existingDeck = existingBootstrap.decks.find((deck) => deck.id === seed.id);
+    if (!existingDeck) throw new Error(`当前 bootstrap 中缺少题库：${seed.name}`);
+    const questionById = new Map(existingBootstrap.questions.map((question) => [question.id, question]));
+    const seedQuestions = existingDeck.questionIds.map((questionId) => questionById.get(questionId)).filter(Boolean);
+    if (seedQuestions.length === 0) throw new Error(`当前 bootstrap 中题库为空：${seed.name}`);
+    questions.push(...seedQuestions);
+    decks.push({
+      id: seed.id,
+      name: seed.name,
+      questionIds: seedQuestions.map((question) => question.id),
+      createdAt: exportedAt,
+      updatedAt: exportedAt,
+      isSeed: true
+    });
+    reports.push({ name: seed.name, totalRows: seedQuestions.length, imported: seedQuestions.length, skipped: 0, images: seedQuestions.reduce((sum, question) => sum + (question.imageUrls?.length ?? 0), 0), errors: [], skippedRows: [] });
+    continue;
+  }
+
   const source = seed.source ?? seed.name;
   const workbookPath = path.join(root, "seed-source", seed.file);
   const parsed = await parseWorkbook(workbookPath, source);
@@ -109,6 +124,13 @@ console.log(JSON.stringify({
   questions: questions.length,
   reports
 }, null, 2));
+
+function readExistingBootstrapData() {
+  const bootstrapPath = path.join(root, "public", "bootstrap", "progress.json");
+  if (!fs.existsSync(bootstrapPath)) return { questions: [], decks: [] };
+  const payload = JSON.parse(fs.readFileSync(bootstrapPath, "utf8"));
+  return payload.data ?? payload;
+}
 
 async function parseWorkbook(workbookPath, source) {
   const rows = await readWorkbookRows(fs.readFileSync(workbookPath));

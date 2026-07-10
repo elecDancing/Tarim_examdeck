@@ -154,7 +154,6 @@ import {
   syncHardQuestionDeckForCurrentRules,
   areQuestionIdListsEqual,
   areSeedDecksImported,
-  isLightHydrocarbonSeedCurrent,
   orderSeedDecks,
   mergeImportReports,
   buildDeckId,
@@ -246,7 +245,7 @@ type DeckActionDialogState = { kind: "reset" | "delete" | "removePlan"; deckId: 
 type SeedDeckConfig = {
   id: string;
   name: string;
-  file: string;
+  file?: string;
   source?: string;
 };
 
@@ -259,7 +258,6 @@ const DAILY_REVIEW_LIMIT = 1000;
 const MISTAKE_CLEAR_CORRECT_STREAK = 3;
 const AUTO_SLASH_CORRECT_STREAK = 5;
 const ALL_DAILY_REVIEW_DECK_ID = "deck_all_daily_review";
-const LIGHT_HYDROCARBON_DECK_ID = "deck_light_hydrocarbon_senior_technician";
 const HARD_QUESTION_DECK_ID = "deck_hard_low_accuracy";
 const HARD_QUESTION_DECK_NAME = "重难题";
 const HARD_QUESTION_RATE_THRESHOLD = 0.5;
@@ -311,20 +309,15 @@ const BUNDLED_SAFETY_IMAGE_PATHS: Record<string, string> = {
   "0993": "/question-images/safety/safety-0993-image-28.png"
 };
 const SEED_DECKS: SeedDeckConfig[] = [
+  { id: "deck_jo5no3", name: "轻烃操作工初级" },
+  { id: "deck_jo6dcz", name: "轻烃操作工中级" },
   { id: "deck_gas_purification_junior", name: "天然气净化工初级工", file: "gas-purification-junior.xlsx" },
   { id: "deck_gas_purification_intermediate", name: "天然气净化工中级工", file: "gas-purification-intermediate.xlsx" },
-  { id: "deck_gas_purification_senior", name: "天然气净化工高级工", file: "gas-purification-senior.xlsx" },
-  { id: "deck_tech", name: "天然气净化工技师", file: "tech.xlsx", source: "技师题" },
-  { id: LIGHT_HYDROCARBON_DECK_ID, name: "轻烃操作工高级工及技师", file: "light-hydrocarbon-senior-technician.xlsx" },
-  { id: "deck_oilfield_risk_control", name: "油气田开发危害因素辨识与风险防控", file: "oilfield-risk-control.xlsx" },
   { id: "deck_oil_production_junior", name: "采油工初级", file: "oil-production-junior.xlsx" },
   { id: "deck_oil_production_intermediate", name: "采油工中级", file: "oil-production-intermediate.xlsx" },
-  { id: "deck_oil_production_senior", name: "采油工高级", file: "oil-production-senior.xlsx" },
-  { id: "deck_oil_production_technician", name: "采油工技师", file: "oil-production-technician.xlsx" },
   { id: "deck_gathering_transportation_junior", name: "集输工初级", file: "gathering-transportation-junior.xlsx" },
   { id: "deck_gathering_transportation_intermediate", name: "集输工中级", file: "gathering-transportation-intermediate.xlsx" },
-  { id: "deck_gathering_transportation_senior", name: "集输工高级", file: "gathering-transportation-senior.xlsx" },
-  { id: "deck_gathering_transportation_technician", name: "集输工技师", file: "gathering-transportation-technician.xlsx" }
+  { id: "deck_oilfield_risk_control", name: "油气田开发危害因素辨识与风险防控", file: "oilfield-risk-control.xlsx" }
 ] as const;
 
 const DEFAULT_CONFIG: ExamConfig = {
@@ -1020,29 +1013,37 @@ function App() {
   async function importSeed() {
     try {
       setStatus("正在导入内置 Excel 题库");
-      const seedResults: { seed: SeedDeckConfig; result: Awaited<ReturnType<typeof parseExcelWorkbook>> }[] = [];
+      const bootstrapData = SEED_DECKS.some((seed) => !seed.file) ? await loadBootstrapSeedData(import.meta.env.BASE_URL) : null;
+      const seedResults: { seed: SeedDeckConfig; questions: Question[]; report?: ImportReport }[] = [];
       for (const seed of SEED_DECKS) {
+        if (!seed.file) {
+          const bootstrapDeck = bootstrapData?.decks.find((deck) => deck.id === seed.id) ?? null;
+          const questions = getDeckQuestions(bootstrapData?.questions ?? [], bootstrapDeck);
+          if (questions.length === 0) throw new Error(`内置题库文件未找到：${seed.name}`);
+          seedResults.push({ seed, questions });
+          continue;
+        }
         const response = await fetch(`${import.meta.env.BASE_URL}seed/${seed.file}`);
         if (!response.ok) throw new Error(`内置题库文件未找到：${seed.name}`);
         const buffer = await response.arrayBuffer();
         const source = seed.source ?? seed.name;
         const embeddedImages = await extractEmbeddedImages(buffer, source);
         const result = await parseExcelWorkbook(buffer, source, embeddedImages);
-        seedResults.push({ seed, result });
+        seedResults.push({ seed, questions: result.questions, report: result.report });
       }
       setData((previous) => {
         let next = previous;
-        for (const { seed, result } of seedResults) {
-          next = upsertDeck(next, seed.id, seed.name, result.questions, true);
+        for (const { seed, questions } of seedResults) {
+          next = upsertDeck(next, seed.id, seed.name, questions, true);
         }
         return {
           ...orderSeedDecks(next),
           seedImported: true
         };
       });
-      const nextReport = mergeImportReports(seedResults.map(({ seed, result }) => ({
+      const nextReport = mergeImportReports(seedResults.filter((item) => item.report).map(({ seed, report }) => ({
         label: seed.name,
-        report: result.report
+        report: report!
       })));
       setReport(nextReport);
       setStatus(`已导入/更新 ${SEED_DECKS.length} 个内置题库，共 ${nextReport.imported} 道客观题，跳过 ${nextReport.skipped} 行${formatImportSkippedSummary(nextReport)}`);

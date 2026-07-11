@@ -12,6 +12,7 @@ export function SearchTextInput({ value, onChange, placeholder }: SearchTextInpu
   const lastCommittedValueRef = useRef(value);
   const onChangeRef = useRef(onChange);
   const commitFrameRef = useRef<number | null>(null);
+  const valueWatchFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -42,10 +43,22 @@ export function SearchTextInput({ value, onChange, placeholder }: SearchTextInpu
         commitCurrentValue();
       });
     };
-    const handleInput = (event: Event) => {
+    const stopValueWatch = () => {
+      if (valueWatchFrameRef.current === null) return;
+      window.cancelAnimationFrame(valueWatchFrameRef.current);
+      valueWatchFrameRef.current = null;
+    };
+    const startValueWatch = () => {
+      stopValueWatch();
+      const watch = () => {
+        commitCurrentValue();
+        if (document.activeElement === input) valueWatchFrameRef.current = window.requestAnimationFrame(watch);
+        else valueWatchFrameRef.current = null;
+      };
+      valueWatchFrameRef.current = window.requestAnimationFrame(watch);
+    };
+    const handleInput = () => {
       reopenCollapsedSearchResults(input);
-      const inputEvent = event as InputEvent;
-      if (composingRef.current || inputEvent.isComposing) return;
       commitCurrentValue();
     };
     const handleCompositionStart = () => {
@@ -55,16 +68,22 @@ export function SearchTextInput({ value, onChange, placeholder }: SearchTextInpu
       composingRef.current = false;
       scheduleCommit();
     };
+    const handleCompositionUpdate = () => {
+      scheduleCommit();
+    };
     const handleFocus = () => {
       if (input.value.trim()) reopenCollapsedSearchResults(input);
+      startValueWatch();
     };
     const handleBlur = () => {
       composingRef.current = false;
+      stopValueWatch();
       commitCurrentValue();
     };
 
     input.addEventListener("input", handleInput);
     input.addEventListener("compositionstart", handleCompositionStart);
+    input.addEventListener("compositionupdate", handleCompositionUpdate);
     input.addEventListener("compositionend", handleCompositionEnd);
     input.addEventListener("change", commitCurrentValue);
     input.addEventListener("focus", handleFocus);
@@ -74,8 +93,10 @@ export function SearchTextInput({ value, onChange, placeholder }: SearchTextInpu
         window.cancelAnimationFrame(commitFrameRef.current);
         commitFrameRef.current = null;
       }
+      stopValueWatch();
       input.removeEventListener("input", handleInput);
       input.removeEventListener("compositionstart", handleCompositionStart);
+      input.removeEventListener("compositionupdate", handleCompositionUpdate);
       input.removeEventListener("compositionend", handleCompositionEnd);
       input.removeEventListener("change", commitCurrentValue);
       input.removeEventListener("focus", handleFocus);

@@ -31,18 +31,24 @@ describe("SearchTextInput", () => {
     document.body.innerHTML = "";
   });
 
-  it("在中文组词完成后立即提交搜索，无需按删除键", async () => {
+  it("即使 Android 输入法一直处于组词状态也立即提交搜索", () => {
     const input = container.querySelector<HTMLInputElement>("input")!;
     const output = container.querySelector<HTMLOutputElement>("output")!;
 
     act(() => input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true })));
     input.value = "安全";
     act(() => input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "安全", isComposing: true, inputType: "insertCompositionText" })));
-    expect(output.textContent).toBe("");
-
-    act(() => input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "安全" })));
-    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
     expect(output.textContent).toBe("安全");
+  });
+
+  it("在输入法没有派发 input 事件时仍能从原生输入框同步文字", async () => {
+    const input = container.querySelector<HTMLInputElement>("input")!;
+    const output = container.querySelector<HTMLOutputElement>("output")!;
+
+    act(() => input.focus());
+    input.value = "压力";
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
+    expect(output.textContent).toBe("压力");
   });
 
   it("立即提交英文、粘贴和删除产生的原生 input 事件", () => {

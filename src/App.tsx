@@ -6350,8 +6350,10 @@ function QuestionNotePanel({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const shouldFocusEditor = useRef(false);
   const noteCooldownTimer = useRef<number | undefined>(undefined);
+  const lastSavedDraft = useRef(note);
 
   useEffect(() => {
+    lastSavedDraft.current = note;
     setDraft(note);
     if (previousQuestionId.current !== questionId) {
       previousQuestionId.current = questionId;
@@ -6386,7 +6388,14 @@ function QuestionNotePanel({
 
   function updateDraft(value: string) {
     setDraft(value);
+    if (lastSavedDraft.current === value) return;
+    lastSavedDraft.current = value;
     onChange(questionId, value);
+  }
+
+  function commitDraft(value: string) {
+    updateDraft(value);
+    return value.trim().length > 0;
   }
 
   function openEditor() {
@@ -6426,12 +6435,16 @@ function QuestionNotePanel({
           id={noteId}
           value={draft}
           rows={variant === "detail" ? 5 : 4}
-          onChange={(event) => updateDraft(event.target.value)}
-          onBlur={() => {
-            if (hasNote || isAndroidNative) closeEditor();
+          onInput={(event) => updateDraft(event.currentTarget.value)}
+          onChange={(event) => updateDraft(event.currentTarget.value)}
+          onCompositionEnd={(event) => updateDraft(event.currentTarget.value)}
+          onBlur={(event) => {
+            const committedHasNote = commitDraft(event.currentTarget.value);
+            if (committedHasNote || isAndroidNative) closeEditor();
           }}
           onKeyDown={(event) => {
             if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && hasNote) {
+              commitDraft(event.currentTarget.value);
               closeEditor();
             }
           }}

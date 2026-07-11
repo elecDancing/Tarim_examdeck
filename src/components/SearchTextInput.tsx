@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import { useEffect, useRef } from "react";
 
 type SearchTextInputProps = {
   value: string;
@@ -10,25 +9,79 @@ type SearchTextInputProps = {
 export function SearchTextInput({ value, onChange, placeholder }: SearchTextInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const composingRef = useRef(false);
-  const lastEmittedValueRef = useRef(value);
-  const [localValue, setLocalValue] = useState(value);
+  const lastCommittedValueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+  const commitFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
-    lastEmittedValueRef.current = value;
-    if (!composingRef.current) setLocalValue(value);
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input || value === lastCommittedValueRef.current) return;
+    lastCommittedValueRef.current = value;
+    if (!composingRef.current && input.value !== value) input.value = value;
   }, [value]);
 
-  const updateValue = (nextValue: string) => {
-    setLocalValue(nextValue);
-    reopenCollapsedSearchResults(inputRef.current);
-    if (lastEmittedValueRef.current === nextValue) return;
-    lastEmittedValueRef.current = nextValue;
-    onChange(nextValue);
-  };
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
 
-  const handleTextInput = (event: FormEvent<HTMLInputElement>) => {
-    updateValue(event.currentTarget.value);
-  };
+    const commitCurrentValue = () => {
+      const nextValue = input.value;
+      reopenCollapsedSearchResults(input);
+      if (lastCommittedValueRef.current === nextValue) return;
+      lastCommittedValueRef.current = nextValue;
+      onChangeRef.current(nextValue);
+    };
+    const scheduleCommit = () => {
+      if (commitFrameRef.current !== null) window.cancelAnimationFrame(commitFrameRef.current);
+      commitFrameRef.current = window.requestAnimationFrame(() => {
+        commitFrameRef.current = null;
+        commitCurrentValue();
+      });
+    };
+    const handleInput = (event: Event) => {
+      reopenCollapsedSearchResults(input);
+      const inputEvent = event as InputEvent;
+      if (composingRef.current || inputEvent.isComposing) return;
+      commitCurrentValue();
+    };
+    const handleCompositionStart = () => {
+      composingRef.current = true;
+    };
+    const handleCompositionEnd = () => {
+      composingRef.current = false;
+      scheduleCommit();
+    };
+    const handleFocus = () => {
+      if (input.value.trim()) reopenCollapsedSearchResults(input);
+    };
+    const handleBlur = () => {
+      composingRef.current = false;
+      commitCurrentValue();
+    };
+
+    input.addEventListener("input", handleInput);
+    input.addEventListener("compositionstart", handleCompositionStart);
+    input.addEventListener("compositionend", handleCompositionEnd);
+    input.addEventListener("change", commitCurrentValue);
+    input.addEventListener("focus", handleFocus);
+    input.addEventListener("blur", handleBlur);
+    return () => {
+      if (commitFrameRef.current !== null) {
+        window.cancelAnimationFrame(commitFrameRef.current);
+        commitFrameRef.current = null;
+      }
+      input.removeEventListener("input", handleInput);
+      input.removeEventListener("compositionstart", handleCompositionStart);
+      input.removeEventListener("compositionend", handleCompositionEnd);
+      input.removeEventListener("change", commitCurrentValue);
+      input.removeEventListener("focus", handleFocus);
+      input.removeEventListener("blur", handleBlur);
+    };
+  }, []);
 
   return (
     <input
@@ -37,18 +90,7 @@ export function SearchTextInput({ value, onChange, placeholder }: SearchTextInpu
       inputMode="search"
       enterKeyHint="search"
       autoComplete="off"
-      value={localValue}
-      onCompositionStart={() => { composingRef.current = true; }}
-      onCompositionEnd={(event) => {
-        composingRef.current = false;
-        updateValue(event.currentTarget.value);
-      }}
-      onInput={handleTextInput}
-      onChange={handleTextInput}
-      onFocus={(event) => {
-        if (event.currentTarget.value.trim()) reopenCollapsedSearchResults(event.currentTarget);
-      }}
-      onBlur={(event) => updateValue(event.currentTarget.value)}
+      defaultValue={value}
       placeholder={placeholder}
     />
   );

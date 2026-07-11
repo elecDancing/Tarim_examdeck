@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ClipboardEvent, ReactNode } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
@@ -15,31 +15,7 @@ import { PracticeAnswerSearchOverlay } from "./components/PracticeAnswerSearchOv
 import { ScrollableQuestionNav } from "./components/ScrollableQuestionNav";
 import { SearchTextInput } from "./components/SearchTextInput";
 import { HighlightedRichText, ProficiencyBadge, RichText } from "./components/RichText";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  BarChart3,
-  BookOpen,
-  CalendarCheck,
-  CheckCircle2,
-  ClipboardList,
-  Download,
-  FileSpreadsheet,
-  Menu,
-  MoreHorizontal,
-  NotebookPen,
-  Pencil,
-  Play,
-  RotateCcw,
-  Search,
-  Settings,
-  Shuffle,
-  Star,
-  Sword,
-  Trash2,
-  Upload,
-  XCircle
-} from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, BookOpen, CalendarCheck, CheckCircle2, ClipboardList, Download, FileSpreadsheet, Menu, MoreHorizontal, NotebookPen, Pencil, Play, RotateCcw, Search, Settings, Shuffle, Star, Sword, Trash2, Upload, XCircle } from "lucide-react";
 import type { AppData, ChoiceOption, DailyMistakeSummary, DailyReviewItem, DailyReviewSession, Deck, ExamConfig, ExamItem, ExamSession, ImportReport, PracticeMode, PracticeState, ProficiencyLevel, Question, QuestionStat, QuestionType } from "./types";
 import { buildExamItems, getOrderedOptions, isAnswerCorrect, optionDisplayKey } from "./lib/exam";
 import { exportQuestionDecksToZip, exportQuestionsToExcel } from "./lib/excelExport";
@@ -390,6 +366,7 @@ function App() {
   const [dailySummaryDateKey, setDailySummaryDateKey] = useState(() => getDailySummaryDateKey(new Date()));
   const [greetingTime, setGreetingTime] = useState(() => new Date());
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [typeFilter, setTypeFilter] = useState<QuestionType | "全部">("全部");
   const [bankFocus, setBankFocus] = useState<QuestionSetFocus | null>(null);
   const [detailQuestionId, setDetailQuestionId] = useState<string | null>(null);
@@ -768,8 +745,8 @@ function App() {
     const scopedQuestions = activeQuestions
       .filter((question) => !focusedIds || focusedIds.has(question.id))
       .filter((question) => typeFilter === "全部" || question.type === typeFilter);
-    return query.trim() ? searchQuestions(scopedQuestions, query, scopedQuestions.length) : scopedQuestions;
-  }, [activeQuestions, bankFocus, query, typeFilter]);
+    return deferredQuery.trim() ? searchQuestions(scopedQuestions, deferredQuery, scopedQuestions.length) : scopedQuestions;
+  }, [activeQuestions, bankFocus, deferredQuery, typeFilter]);
   const mistakeQuestions = useMemo(
     () => activeQuestions.filter((question) => isActiveMistake(data.stats[question.id]) && !slashedQuestionSet.has(question.id)).sort((a, b) => (data.stats[b.id]?.wrong ?? 0) - (data.stats[a.id]?.wrong ?? 0)),
     [activeQuestions, data.stats, slashedQuestionSet]
@@ -5016,7 +4993,8 @@ function QuestionBank({
   openQuestion: (questionId: string) => void;
   editQuestion: (questionId: string) => void;
 }) {
-  const searchTerms = useMemo(() => getSearchTerms(query), [query]);
+  const deferredQuery = useDeferredValue(query);
+  const searchTerms = useMemo(() => getSearchTerms(deferredQuery), [deferredQuery]);
 
   return (
     <section className="page">
@@ -5129,17 +5107,18 @@ function QuestionSearchPanel({
   editQuestion: (questionId: string) => void;
 }) {
   const [searchText, setSearchText] = useState("");
+  const deferredSearchText = useDeferredValue(searchText);
   const [mode, setMode] = useState<"list" | "compare">("list");
   const [visibleLimit, setVisibleLimit] = useState(80);
-  const allResults = useMemo(() => searchQuestions(questions, searchText, questions.length), [questions, searchText]);
+  const allResults = useMemo(() => searchQuestions(questions, deferredSearchText, questions.length), [questions, deferredSearchText]);
   const results = useMemo(() => allResults.slice(0, visibleLimit), [allResults, visibleLimit]);
   const deckNamesByQuestionId = useMemo(() => buildDeckNamesByQuestionId(decks), [decks]);
-  const hasQuery = searchText.trim().length > 0;
-  const searchTerms = useMemo(() => getSearchTerms(searchText), [searchText]);
+  const hasQuery = deferredSearchText.trim().length > 0;
+  const searchTerms = useMemo(() => getSearchTerms(deferredSearchText), [deferredSearchText]);
   const groupedResults = useMemo(() => groupQuestionsByType(results), [results]);
   useEffect(() => {
     setVisibleLimit(80);
-  }, [searchText, questions]);
+  }, [deferredSearchText, questions]);
   const handleOpenQuestion = (questionId: string) => {
     openQuestion(questionId);
   };

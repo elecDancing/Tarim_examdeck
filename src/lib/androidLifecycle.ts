@@ -48,9 +48,11 @@ export function useAndroidLifecycle(options: AndroidLifecycleOptions) {
     const removers: Array<() => void> = [];
     const focusEditable = (event: Event) => {
       const target = event.target;
-      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
-        window.setTimeout(() => target.focus({ preventScroll: true }), 0);
-      }
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
+      if (document.activeElement === target) return;
+      window.setTimeout(() => {
+        if (document.contains(target) && document.activeElement !== target) target.focus({ preventScroll: true });
+      }, 0);
     };
     const flush = () => saveData(optionsRef.current.dataRef.current);
     const flushOnHidden = () => {
@@ -83,12 +85,10 @@ export function useAndroidLifecycle(options: AndroidLifecycleOptions) {
     };
 
     document.addEventListener("visibilitychange", flushOnHidden);
-    document.addEventListener("touchend", focusEditable, true);
     document.addEventListener("pointerup", focusEditable, true);
     window.addEventListener("pagehide", flush);
     window.addEventListener("freeze", flush);
     removers.push(() => document.removeEventListener("visibilitychange", flushOnHidden));
-    removers.push(() => document.removeEventListener("touchend", focusEditable, true));
     removers.push(() => document.removeEventListener("pointerup", focusEditable, true));
     removers.push(() => window.removeEventListener("pagehide", flush));
     removers.push(() => window.removeEventListener("freeze", flush));

@@ -2688,8 +2688,16 @@ function App() {
           if (isHardPractice && currentPracticeStorageKey) discardSubmittedPractice(currentPracticeStorageKey);
           setAnswerProgressCollapsed(true);
           setMistakePracticeFinishDialogOpen(false);
-          const nextView = isHardPractice ? "practice" : practiceDeck ? "dashboard" : "home";
-          setActivePracticeStorageKey(nextView === "dashboard" ? getDeckPracticeStorageKey(practiceDeck) ?? activeDeckId ?? null : nextView === "practice" ? currentPracticeStorageKey : null);
+          const nextView = activePractice.scope === "favorites"
+            ? "favorites"
+            : activePractice.scope === "mistakes"
+              ? "mistakes"
+              : isHardPractice
+                ? "practice"
+                : practiceDeck
+                  ? "dashboard"
+                  : "home";
+          setActivePracticeStorageKey(nextView === "dashboard" ? getDeckPracticeStorageKey(practiceDeck) ?? activeDeckId ?? null : null);
           setView(nextView);
         }
       }));
@@ -2716,7 +2724,7 @@ function App() {
     const isHardPractice = Boolean(activePractice && scope !== "mistakes" && scope !== "favorites" && isHardQuestionDeck(activePracticeDeck));
     if (isHardPractice && currentPracticeStorageKey) discardSubmittedPractice(currentPracticeStorageKey);
     setMistakePracticeFinishDialogOpen(false);
-    setActivePracticeStorageKey(getDeckPracticeStorageKey(activeDeck) ?? activeDeckId);
+    setActivePracticeStorageKey(isHardPractice ? null : getDeckPracticeStorageKey(activeDeck) ?? activeDeckId);
     setAnswerProgressCollapsed(true);
     setView(scope === "favorites" ? "favorites" : isHardPractice ? "practice" : "mistakes");
     setStatus(scope === "favorites" ? "已退出收藏刷题" : isHardPractice ? "已退出重难题刷题" : "已退出错题刷题");
@@ -5122,11 +5130,16 @@ function QuestionSearchPanel({
 }) {
   const [searchText, setSearchText] = useState("");
   const [mode, setMode] = useState<"list" | "compare">("list");
-  const results = useMemo(() => searchQuestions(questions, searchText, 80), [questions, searchText]);
+  const [visibleLimit, setVisibleLimit] = useState(80);
+  const allResults = useMemo(() => searchQuestions(questions, searchText, questions.length), [questions, searchText]);
+  const results = useMemo(() => allResults.slice(0, visibleLimit), [allResults, visibleLimit]);
   const deckNamesByQuestionId = useMemo(() => buildDeckNamesByQuestionId(decks), [decks]);
   const hasQuery = searchText.trim().length > 0;
   const searchTerms = useMemo(() => getSearchTerms(searchText), [searchText]);
   const groupedResults = useMemo(() => groupQuestionsByType(results), [results]);
+  useEffect(() => {
+    setVisibleLimit(80);
+  }, [searchText, questions]);
   const handleOpenQuestion = (questionId: string) => {
     openQuestion(questionId);
   };
@@ -5151,7 +5164,7 @@ function QuestionSearchPanel({
       {hasQuery ? (
         <>
           <div className="search-tools">
-            <span>{results.length} 道匹配</span>
+            <span>{results.length === allResults.length ? `${allResults.length} 道匹配` : `${results.length} / ${allResults.length} 道匹配`}</span>
             <div className="segmented search-mode-switch">
               <button type="button" className={mode === "list" ? "active" : ""} onClick={() => setMode("list")}>列表</button>
               <button type="button" className={mode === "compare" ? "active" : ""} onClick={() => setMode("compare")}>对比</button>
@@ -5221,6 +5234,11 @@ function QuestionSearchPanel({
               ))}
               {results.length === 0 && <p className="empty-text">没有匹配题目</p>}
             </div>
+          )}
+          {results.length < allResults.length && (
+            <button className="secondary-button search-load-more" type="button" onClick={() => setVisibleLimit((limit) => Math.min(limit + 80, allResults.length))}>
+              加载更多题目
+            </button>
           )}
         </>
       ) : title ? (

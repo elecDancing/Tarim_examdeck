@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import type { DailyReviewSession, Deck, ExamSession, PracticeState, Question } from "../types";
-import { getPracticeActiveIndex, getPracticeMode, isHardQuestionDeck } from "./appRules";
+import { getPracticeActiveIndex } from "./appRules";
 
 type AndroidAnswerSwipeOptions = {
   isAnsweringView: boolean;
@@ -62,8 +62,6 @@ const SWIPE_TAP_DEBOUNCE_MS = 220;
 const SWIPE_TAP_QUEUE_MAX = 15;
 const SWIPE_TAP_QUEUE_MIN_MS = 64;
 const SWIPE_TAP_QUEUE_STEP_DELAY_MS = 18;
-const OPTION_LEFT_EDGE_TAP_PX = 18;
-const OPTION_RIGHT_EDGE_TAP_PX = 32;
 
 function getSwipeStage() {
   return document.querySelector<HTMLElement>(".android-question-swipe-stage");
@@ -84,16 +82,6 @@ function getSwipeCommitPx() {
 function setStageVars(stage: HTMLElement, dx: number, progress: number) {
   stage.style.setProperty("--android-swipe-x", `${dx.toFixed(1)}px`);
   stage.style.setProperty("--android-swipe-progress", progress.toFixed(3));
-}
-
-function getOptionEdgeTapDirection(clientX: number, target: EventTarget | null): SwipeDirection | null {
-  if (!(target instanceof Element)) return null;
-  const optionButton = target.closest<HTMLElement>(".option-button");
-  if (!optionButton) return null;
-  const rect = optionButton.getBoundingClientRect();
-  if (clientX - rect.left <= OPTION_LEFT_EDGE_TAP_PX) return "previous";
-  if (rect.right - clientX <= OPTION_RIGHT_EDGE_TAP_PX) return "next";
-  return null;
 }
 
 export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
@@ -376,30 +364,15 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
       return absDx >= getSwipeCommitPx() && horizontalEnough;
     };
 
-    const isCurrentAnswered = () => {
-      const { view, activeSession, activeReviewSession, reviewIndex, activePractice, activeDeck } = latestOptionsRef.current;
-      if (view === "exam") return Boolean(activeSession?.submittedAt);
-      if (view === "review" && activeReviewSession) return activeReviewSession.items[reviewIndex]?.isCorrect !== undefined;
-      if (view === "practice" && activePractice) {
-        const index = getPracticeActiveIndex(activePractice);
-        const questionId = activePractice.questionIds[index];
-        const mode = activeDeck && isHardQuestionDeck(activeDeck) ? "answer" : getPracticeMode(activePractice);
-        return mode === "review" || Boolean(activePractice.submittedAt) || activePractice.results?.[questionId] !== undefined;
-      }
-      return false;
-    };
-
     const tapNavigateAt = (clientX: number, target: EventTarget | null, source: TapNavigateSource = "direct") => {
       const now = performance.now();
       if (isNoteEditingGuardActive()) return false;
-      const allowOptionTapNavigate = isCurrentAnswered();
-      if (isIgnoredTapTarget(target, allowOptionTapNavigate)) return false;
-      const optionEdgeDirection = getOptionEdgeTapDirection(clientX, target);
+      if (isIgnoredTapTarget(target, false)) return false;
       if (committedSwipe) {
         const minInterval = source === "click" ? SWIPE_TAP_DEBOUNCE_MS : SWIPE_TAP_QUEUE_MIN_MS;
         if (now - lastTapNavigateAt < minInterval) return false;
         const ratio = clientX / Math.max(1, window.innerWidth);
-        const direction = optionEdgeDirection ?? (ratio <= 0.32 ? "previous" : ratio >= 0.68 ? "next" : null);
+        const direction = ratio <= 0.32 ? "previous" : ratio >= 0.68 ? "next" : null;
         if (!direction) return false;
         const didQueue = enqueueTapStep(direction);
         if (didQueue) {
@@ -409,14 +382,6 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
         return didQueue;
       }
       if (now - lastTapNavigateAt < SWIPE_TAP_DEBOUNCE_MS) return false;
-      if (optionEdgeDirection) {
-        const didNavigate = commitSwipe(optionEdgeDirection);
-        if (didNavigate) {
-          lastTapNavigateAt = now;
-          if (source === "direct") suppressClickAfterSwipe();
-        }
-        return didNavigate;
-      }
       const ratio = clientX / Math.max(1, window.innerWidth);
       if (ratio <= 0.32) {
         const didNavigate = commitSwipe("previous");
@@ -439,7 +404,7 @@ export function useAndroidAnswerSwipe(options: AndroidAnswerSwipeOptions) {
 
     const maybeTapNavigate = (clientX: number, clientY: number, target: EventTarget | null) => {
       if (Math.abs(clientX - startX) > SWIPE_TAP_MAX_MOVE_PX || Math.abs(clientY - startY) > SWIPE_TAP_MAX_MOVE_PX) return false;
-      if (isIgnoredTapTarget(startTarget, isCurrentAnswered())) return false;
+      if (isIgnoredTapTarget(startTarget, false)) return false;
       return tapNavigateAt(clientX, target);
     };
 

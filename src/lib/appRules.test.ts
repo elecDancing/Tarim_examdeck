@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { AppData, PracticeState, Question, QuestionStat, QuestionType } from "../types";
 import {
@@ -526,6 +527,20 @@ describe("hard question deck rules", () => {
     expect(refreshed.practices.deck_hard_low_accuracy).toBeUndefined();
     expect(refreshed.practices[HARD_QUESTION_PRACTICE_KEY]?.questionIds).toEqual(["q1", "q2"]);
     expect(refreshed.decks.find((deck) => deck.id === "deck_hard_low_accuracy")?.questionIds).toEqual(["q2"]);
+  });
+});
+
+describe("bundled question data", () => {
+  it("keeps question type compatible with answer count", () => {
+    const bootstrap = JSON.parse(readFileSync(new URL("../../public/bootstrap/progress.json", import.meta.url), "utf8")) as { data: { questions: Question[] } };
+    const invalidQuestions = bootstrap.data.questions
+      .filter((question) => {
+        if (question.type === "多选题") return question.answerKeys.length < 2;
+        return question.answerKeys.length !== 1;
+      })
+      .map((question) => `${question.uid}:${question.type}:${question.answerKeys.join("")}`);
+
+    expect(invalidQuestions).toEqual([]);
   });
 });
 

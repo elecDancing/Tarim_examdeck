@@ -1,141 +1,165 @@
-<h1 align="center">塔里木刷题王</h1>
+<h1 align="center">塔里木刷题王 · Android</h1>
 
 <p align="center">
-  面向油气田岗位取证、技能竞赛与日常复习的离线题库训练应用。
+  面向油气田岗位取证、技能竞赛与日常复习的离线 Android 刷题应用。
 </p>
 
 <p align="center">
   <img alt="React" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white">
-  <img alt="Vite" src="https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white">
-  <img alt="Desktop" src="https://img.shields.io/badge/Desktop-macOS%20%7C%20Windows-24292F">
-  <img alt="Android" src="https://img.shields.io/badge/Android-Capacitor-34A853?logo=android&logoColor=white">
+  <img alt="Capacitor" src="https://img.shields.io/badge/Android-Capacitor-34A853?logo=android&logoColor=white">
   <img alt="Offline" src="https://img.shields.io/badge/Mode-Offline-0E9F6E">
 </p>
 
----
+## 维护范围
 
-## 为什么做这个项目
+`codex/android-only` 是 Android 单平台维护分支。桌面端最后的多平台基线保存在 Git 标签：
 
-塔里木刷题王是一套围绕“刷题、复习、错题、统计、模拟考试、进度迁移”设计的本地学习工具。
+```text
+desktop-final-v1.0.50
+```
 
-设计初衷是让甲方、乙方员工都能使用同一套完整题库备考，减少不同单位、不同管理区之间的信息差，避免恶意竞争。
+当前分支不再提供 macOS、Windows 或 iOS 构建入口。共享业务代码中的兼容分支会在有测试保护的前提下逐步清理。
 
-## 功能亮点
+## 主要功能
 
-| 模块 | 能力 |
-| --- | --- |
-| 全量题库 | 内置天然气净化、轻烃操作、采油、集输、安全风险等取证考试和技能竞赛所需 **100% 全量题库**，重点解决**题库不全导致赛场失分、难以冲击满分**的问题 |
-| 题库导入导出 | 支持 **Excel 题库导入、题库导出和备份**，便于补充新题、校对题库和跨设备迁移 |
-| 多题型 | 支持客观题（判断题、单选题、多选题） |
-| 每日复习 | 按答题记录、错误情况、连续答对次数和到期时间生成复习队列 |
-| 整体复习 | 自动合并普通题库并去重，不需要在多个题库间反复切换 |
-| 错题强化 | 错得多、正确率低、掌握不稳定的题会被优先拉回 |
-| 重难题 | 低正确率题目集中归档，便于考前突破 |
-| 斩题机制 | 已稳定掌握的题可标记为已斩，避免在简单题上浪费时间 |
-| 模拟考试 | 支持按题型配置题量，进行接近实战的考前训练 |
-| 学习统计 | 记录每日答题量、正确率、熟练度和复习进度 |
-| 本地离线 | 题库和学习记录保存在本机，适合现场和离线环境 |
+- 判断题、单选题和多选题练习。
+- 顺序刷题、每日复习、错题、收藏、重难题和已斩题目。
+- 模拟考试、学习统计、复习预测和热力图。
+- Excel 自定义题库导入。
+- 本机离线保存学习进度、笔记和题目图片。
+- 学习进度手动导入、导出和恢复。
+- KaTeX 公式渲染与题目图片显示。
 
-## 适用场景
-
-- 员工取证考试、岗位等级考试、技能竞赛备考。
-- 管理区、班站、项目部组织集中学习和考前训练。
-- 个人长期刷题、错题复盘、每日复习和模拟考试。
-- macOS、Windows、Android 之间通过学习进度文件手动迁移。
+正式安装包固定包含 9 个内置题库。发布校验会拒绝缺少题库、额外题库、孤立题目或无效题目引用。
 
 ## 技术栈
 
 ```text
 React 19 + TypeScript + Vite
-IndexedDB 本地存储
+Capacitor Android
+IndexedDB 本地持久化
 KaTeX 公式渲染
-JSZip / Excel 导入导出
-macOS WKWebView 桌面壳
-Windows WPF + WebView2 桌面壳
-Android Capacitor 壳
+JSZip / Excel 导入
+Vitest + jsdom
 ```
 
-## 快速开始
+## 本地开发
+
+需要 Node.js 22：
 
 ```bash
 npm ci
 npm run dev
 ```
 
-默认开发服务运行在：
-
-```text
-http://127.0.0.1:5173
-```
-
-构建前端资源：
-
-```bash
-npm run build
-```
-
-运行测试：
+运行全部回归测试：
 
 ```bash
 npm test
 ```
 
-质量检查：
+构建前端并执行质量检查：
 
 ```bash
+VITE_DISABLE_QUESTION_BANK_EXPORT=1 npm run build
 npm run check:quality
-npm run check:import
 ```
 
-## 发布构建
+## Android 正式构建
 
-| 平台 | 命令 | 产物 |
-| --- | --- | --- |
-| macOS arm64 | `npm run desktop:pack` | `release/塔里木刷题王.app` / `.dmg` |
-| Windows 10/11 | `npm run desktop:pack:windows` | `release/塔里木刷题王-setup.exe` |
-| Android | `npm run android:pack` | `.apk` 安装包 |
+需要：
 
-Windows 版本需要在 Windows 构建环境执行；Android 版本需要配置 JDK、Android SDK 和签名环境。
+- JDK 21
+- Android SDK 36
+- Android Build Tools
+- 正式发布 keystore
+
+本机签名配置保存在被 Git 忽略的文件：
+
+```text
+android/keystores/release.properties
+```
+
+格式：
+
+```bash
+TARIM_ANDROID_KEY_ALIAS=your-alias
+TARIM_ANDROID_KEYSTORE_PASSWORD=your-store-password
+TARIM_ANDROID_KEY_PASSWORD=your-key-password
+```
+
+keystore 默认路径：
+
+```text
+android/keystores/tarim-android-release.jks
+```
+
+执行正式构建：
+
+```bash
+npm run android:pack
+```
+
+该命令固定执行：
+
+```text
+全部回归测试
+→ Android 用户版前端构建
+→ 质量与内置题库检查
+→ Capacitor 同步
+→ Gradle 签名构建
+→ 包名、版本、v2 签名和 APK 内容校验
+```
+
+任何一步失败都不会产出新的正式 APK。签名文件缺失时构建会直接失败，不会自动创建新证书。
+
+APK 输出格式：
+
+```text
+release/tarim-examdeck-android-v1.0.51.apk
+```
+
+## 版本规则
+
+`package.json` 是 Android 版本的唯一来源。Gradle 自动派生：
+
+```text
+versionName = package.json version
+versionCode = major × 1,000,000 + minor × 1,000 + patch
+```
+
+不要再手工修改 `android/app/build.gradle` 中的版本号。
+
+## GitHub Actions
+
+`.github/workflows/android.yml` 会在 Android 分支和 Pull Request 上执行测试、质量检查并构建 Debug APK。
+
+推送与版本一致的 `v*` 标签时会构建签名 APK并发布 GitHub Release。仓库需要配置：
+
+```text
+TARIM_ANDROID_KEYSTORE_BASE64
+TARIM_ANDROID_KEY_ALIAS
+TARIM_ANDROID_KEYSTORE_PASSWORD
+TARIM_ANDROID_KEY_PASSWORD
+```
 
 ## 学习数据
 
-应用使用 IndexedDB 保存本机学习记录，导出的学习进度文件格式为：
+应用使用 IndexedDB 保存本机学习记录。覆盖安装和升级时必须保留相同包名与签名。换手机或清理应用数据前，使用应用内“导出学习进度”生成备份；恢复时使用“导入学习进度”。
 
-```json
-{
-  "app": "塔里木刷题王",
-  "kind": "examdeck-progress-backup",
-  "version": 6
-}
-```
-
-跨设备迁移时只建议使用应用内导入/导出的 JSON 备份文件，不建议直接复制浏览器或 WebView 的 IndexedDB 目录。
-
-## 每日复习策略
-
-每日复习不是固定顺序刷题，而是按学习状态动态生成。系统会优先安排：
-
-- 已学习且到期需要复习的题。
-- 错误次数较多的题。
-- 正确率较低的题。
-- 连续答对次数较少的题。
-- 逾期时间较长的题。
-
-完整策略见 [docs/daily-review-strategy.md](docs/daily-review-strategy.md)。
+完整每日复习规则见 [docs/daily-review-strategy.md](docs/daily-review-strategy.md)。Android 架构和验收清单见 [docs/android-version-architecture.md](docs/android-version-architecture.md)。
 
 ## 项目结构
 
 ```text
 examdeck/
 ├── src/                 # React 界面、业务逻辑和测试
-├── public/              # 内置题库、图片和静态资源
-├── macos/               # macOS WKWebView 封装
-├── windows/             # Windows WPF + WebView2 工程
-├── android/             # Android / Capacitor 工程
-├── installer/           # Windows 安装包脚本
-├── scripts/             # 多平台构建脚本
-├── docs/                # 复习策略和平台架构文档
-├── package.json         # 依赖、脚本和版本信息
+├── public/              # 9 个内置题库、图片和静态资源
+├── android/             # Capacitor Android 工程
+├── scripts/             # Android 构建、版本和发布校验
+├── docs/                # Android 架构与复习规则
+├── .github/workflows/   # Android CI / Release
+├── package.json         # 唯一应用版本源
 └── README.md
 ```

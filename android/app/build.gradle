@@ -1,14 +1,31 @@
+import groovy.json.JsonSlurper
+
 apply plugin: 'com.android.application'
+
+def packageJson = new JsonSlurper().parse(file('../../package.json'))
+def versionMatch = (packageJson.version as String) =~ /^(\d+)\.(\d+)\.(\d+)$/
+if (!versionMatch.matches()) {
+    throw new GradleException("Android version must use x.y.z format: ${packageJson.version}")
+}
+def versionParts = [versionMatch[0][1], versionMatch[0][2], versionMatch[0][3]].collect { it as int }
+if (versionParts.any { it > 999 }) {
+    throw new GradleException("Each Android version part must be below 1000: ${packageJson.version}")
+}
+def packageVersionCode = versionParts[0] * 1000000 + versionParts[1] * 1000 + versionParts[2]
 
 android {
     namespace = "com.tarim.examdeck"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildFeatures {
+        buildConfig = true
+    }
     defaultConfig {
         applicationId "com.tarim.examdeck"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 50
-        versionName "1.0.50"
+        // package.json is the single source of truth for Android versions.
+        versionCode packageVersionCode
+        versionName packageJson.version as String
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

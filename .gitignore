@@ -22,17 +22,6 @@ android/keystores/
 android/local.properties
 local.properties
 
-ios/capacitor-cordova-ios-plugins/
-ios/App/App/public/
-ios/App/App/capacitor.config.json
-ios/App/App/config.xml
-
-# Windows/.NET generated artifacts
-windows/bin/
-windows/obj/
-windows-launcher/bin/
-windows-launcher/obj/
-
 # Local tools, backups, and release installers
 .tools/
 backups/

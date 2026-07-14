@@ -14,14 +14,14 @@ Android WebView + 原生文件桥接
 
 原因：
 
-- 现有 mac 版的刷题业务、题库规则、每日复习、错题、收藏、已斩、重难题、模拟考试、学习计划都已经在 `src/` 里实现。
-- 如果 Android 版重写一套业务，后续会出现两套规则：mac 修了一个统计 bug，Android 也要再修一次。
+- 现有刷题业务、题库规则、每日复习、错题、收藏、已斩、重难题、模拟考试、学习计划都已经在 `src/` 里实现。
+- 完全重写会丢失已经验证过的业务规则，并显著增加回归风险。
 - Capacitor 可以复用当前前端，重点只补 Android 文件导入导出、移动端布局和安装包。
-- 用户要求“学习进度可以在不同版本之间手动导入导出”，复用现有备份协议是最稳的路线。
+- 继续复用现有备份协议，可以保证换手机和升级时的数据迁移能力。
 
-结论：Android 版应定位为“同一套塔里木刷题王应用的 Android 壳”，不是一个独立新软件。
+结论：当前分支只维护 Capacitor Android 版本，不再维护桌面和 iOS 构建工程。
 
-## 2. 现有 mac 版基础
+## 2. 现有业务基础
 
 当前项目主体是 React + Vite + TypeScript：
 
@@ -45,7 +45,7 @@ Android WebView + 原生文件桥接
 这些设计对 Android 版是有价值的，尤其是：
 
 - Android 不应该直接复制 IndexedDB 文件。
-- Android / mac 之间只通过学习进度文件迁移。
+- 不同设备之间只通过学习进度文件迁移。
 - 图片必须跟随备份，否则换设备后题目图片会丢失。
 
 ## 3. 产品目标
@@ -59,8 +59,8 @@ Android 版目标：
 - 支持刷题、错题、收藏、已斩、重难题、每日复习、今日总结、模拟考试。
 - 支持学习计划。
 - 支持导出完整学习进度。
-- 支持导入 mac 版导出的学习进度。
-- 支持 Android 导出的学习进度再导入 mac 版。
+- 支持导入历史版本和其他设备导出的学习进度。
+- 支持 Android 设备之间手动迁移学习进度。
 - 支持题目图片跟随备份迁移。
 
 不建议第一版做：
@@ -95,7 +95,7 @@ Android 版目标：
 - `@capacitor/share`
 - `@capacitor/cli`
 
-但当前项目没有正式的 Android Capacitor 工程，需要新增：
+当前项目已经包含正式的 Android Capacitor 工程：
 
 ```text
 examdeck/
@@ -138,17 +138,10 @@ examdeck/
 ```mermaid
 flowchart TB
   A["React/Vite 业务层<br/>src + public"] --> B["vite build<br/>dist"]
-  B --> C["macOS 壳<br/>WKWebView"]
-  B --> D["Android 壳<br/>Capacitor + WebView"]
-
-  C --> E["macOS IndexedDB<br/>学习数据"]
-  D --> F["Android WebView IndexedDB<br/>学习数据"]
-
-  C --> G["macOS 文件导入导出"]
-  D --> H["Android 文件桥接<br/>SAF / Share / Filesystem"]
-
-  E <--> I["学习进度备份 JSON<br/>examdeck-progress-backup v6"]
-  F <--> I
+  B --> C["Android 壳<br/>Capacitor + WebView"]
+  C --> D["Android WebView IndexedDB<br/>学习数据"]
+  C --> E["Android 文件桥接<br/>SAF / Share / Filesystem"]
+  D <--> F["学习进度备份 JSON<br/>examdeck-progress-backup v6"]
 ```
 
 Android 原生层只负责：
@@ -164,7 +157,7 @@ Android 原生层只负责：
 
 ## 6. Android 项目结构
 
-建议新增：
+当前结构：
 
 ```text
 examdeck/

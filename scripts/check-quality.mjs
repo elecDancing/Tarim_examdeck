@@ -1,8 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
+import { getAndroidReleaseInfo, validateBundledData } from "./lib/android-release.mjs";
 
 const root = process.cwd();
 const failures = [];
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const androidRelease = getAndroidReleaseInfo(packageJson);
 
 function fail(message) {
   failures.push(message);
@@ -63,20 +66,17 @@ if (!fs.existsSync(bootstrapPath)) {
 } else {
   const payload = JSON.parse(fs.readFileSync(bootstrapPath, "utf8"));
   const data = payload.data ?? payload;
-  const questions = Array.isArray(data.questions) ? data.questions : [];
-  const decks = Array.isArray(data.decks) ? data.decks : [];
   const sessions = Array.isArray(data.sessions) ? data.sessions : [];
-  const questionIds = new Set(questions.map((question) => question.id));
-  const referencedIds = new Set(decks.flatMap((deck) => Array.isArray(deck.questionIds) ? deck.questionIds : []));
-  const orphanCount = questions.filter((question) => !referencedIds.has(question.id)).length;
   const duplicateSessionCount = sessions.length - new Set(sessions.map((session) => session.id)).size;
-  const missingReferenceCount = [...referencedIds].filter((id) => !questionIds.has(id)).length;
+  const bundledValidation = validateBundledData(payload);
 
-  if (questions.length === 0) fail("bootstrap 题目为空");
-  if (decks.length === 0) fail("bootstrap 题库为空");
-  if (orphanCount > 0) fail(`bootstrap 存在孤立题目：${orphanCount}`);
+  for (const message of bundledValidation.failures) fail(`bootstrap ${message}`);
   if (duplicateSessionCount > 0) fail(`bootstrap 存在重复考试记录 ID：${duplicateSessionCount}`);
-  if (missingReferenceCount > 0) fail(`bootstrap 题库引用了不存在的题目：${missingReferenceCount}`);
+}
+
+const androidGradle = fs.readFileSync(filePath("android", "app", "build.gradle"), "utf8");
+if (!androidGradle.includes("package.json is the single source of truth")) {
+  fail("Android Gradle 未从 package.json 读取统一版本号");
 }
 
 const distDir = filePath("dist");
@@ -110,5 +110,7 @@ console.log(JSON.stringify({
   stylesEntryLines,
   stylePartials: stylePartials.length,
   publicSizeMb: Number((sizeOf(filePath("public")) / 1024 / 1024).toFixed(1)),
-  distSizeMb: fs.existsSync(distDir) ? Number((sizeOf(distDir) / 1024 / 1024).toFixed(1)) : null
+  distSizeMb: fs.existsSync(distDir) ? Number((sizeOf(distDir) / 1024 / 1024).toFixed(1)) : null,
+  androidVersionName: androidRelease.versionName,
+  androidVersionCode: androidRelease.versionCode
 }, null, 2));

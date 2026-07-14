@@ -63,8 +63,10 @@ function learnedStat(questionId: string, patch: Partial<QuestionStat> = {}): Que
 
 describe("date and daily statistics rules", () => {
   it("uses 04:00 as the study-day boundary", () => {
-    expect(getDailySummaryDateKey(new Date("2026-06-28T03:59:00+08:00"))).toBe("2026-06-27");
-    expect(getDailySummaryDateKey(new Date("2026-06-28T04:00:00+08:00"))).toBe("2026-06-28");
+    // The production rule follows the device's local clock. Constructing an
+    // explicit +08:00 instant makes this assertion depend on the runner's TZ.
+    expect(getDailySummaryDateKey(new Date(2026, 5, 28, 3, 59))).toBe("2026-06-27");
+    expect(getDailySummaryDateKey(new Date(2026, 5, 28, 4, 0))).toBe("2026-06-28");
   });
 
   it("records heatmap/day stats with the same 04:00 boundary", () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   REQUIRED_BUNDLED_DECKS,
   getAndroidReleaseInfo,
@@ -20,6 +21,13 @@ describe("Android release metadata", () => {
   it("rejects versions that cannot safely map to Android versionCode", () => {
     expect(() => parseAndroidVersion("1.0")).toThrow(/x\.y\.z/);
     expect(() => parseAndroidVersion("1.0.1000")).toThrow(/小于 1000/);
+  });
+
+  it("excludes obsolete Kotlin split stdlibs for every Android subproject", () => {
+    const rootGradle = readFileSync(new URL("../android/build.gradle", import.meta.url), "utf8");
+    expect(rootGradle).toMatch(/allprojects\s*\{[\s\S]*configurations\.configureEach/);
+    expect(rootGradle).toContain("module: 'kotlin-stdlib-jdk7'");
+    expect(rootGradle).toContain("module: 'kotlin-stdlib-jdk8'");
   });
 });
 

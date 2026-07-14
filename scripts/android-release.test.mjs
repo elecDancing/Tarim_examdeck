@@ -38,7 +38,10 @@ describe("Android release metadata", () => {
     expect(dockerfile).toContain("21.0.7_6-jdk-jammy@sha256:");
     expect(dockerfile).toContain("ARG NODE_VERSION=22.17.0");
     expect(dockerfile).toContain("ARG ANDROID_PLATFORM_VERSION=36");
+    expect(dockerfile).toContain("ARG ANDROID_COMPAT_BUILD_TOOLS_VERSION=35.0.0");
     expect(dockerfile).toContain("ARG ANDROID_BUILD_TOOLS_VERSION=36.0.0");
+    expect(dockerfile).toContain('"build-tools;${ANDROID_COMPAT_BUILD_TOOLS_VERSION}"');
+    expect(dockerfile).toContain('"build-tools;${ANDROID_BUILD_TOOLS_VERSION}"');
     expect(variablesGradle).toContain("androidBuildToolsVersion = '36.0.0'");
     expect(appGradle).toContain("buildToolsVersion = rootProject.ext.androidBuildToolsVersion");
     expect(dockerfile).not.toMatch(/COPY[^\n]*(keystore|\.jks|release\.properties)/i);

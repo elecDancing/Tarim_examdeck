@@ -7,6 +7,7 @@ FROM eclipse-temurin:21.0.7_6-jdk-jammy@sha256:746ad7128069fdaa77df1f06a0463ad50
 ARG NODE_VERSION=22.17.0
 ARG ANDROID_COMMAND_LINE_TOOLS_VERSION=13114758
 ARG ANDROID_PLATFORM_VERSION=36
+ARG ANDROID_COMPAT_BUILD_TOOLS_VERSION=35.0.0
 ARG ANDROID_BUILD_TOOLS_VERSION=36.0.0
 ARG BUILDER_UID=1000
 ARG BUILDER_GID=1000
@@ -50,6 +51,7 @@ RUN curl --fail --location --retry 4 \
     && sdkmanager --install \
         "platform-tools" \
         "platforms;android-${ANDROID_PLATFORM_VERSION}" \
+        "build-tools;${ANDROID_COMPAT_BUILD_TOOLS_VERSION}" \
         "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" \
     && sdkmanager --list_installed
 

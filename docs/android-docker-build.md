@@ -14,12 +14,14 @@
 | Node.js | 22.17.0 |
 | Android Command-line Tools | 13114758 |
 | Android Platform | API 36 |
-| Android Build Tools | 36.0.0 |
+| Android Build Tools | 35.0.0（Capacitor 子模块兼容）与 36.0.0（主应用） |
 | Gradle | 8.14.3，由项目 wrapper 固定 |
 | Android Gradle Plugin | 8.13.0，由项目固定 |
 | npm 依赖 | `package-lock.json` + `npm ci` |
 
 这样可以避免开发电脑升级 Node、JDK 或 Android Studio 后造成“同一份代码在不同电脑构建结果不同”。Gradle 和 npm 下载缓存保存在项目的 `.docker-cache/` 中，但缓存不参与版本控制，也不改变依赖版本。
+
+主应用在 Gradle 中明确使用 Build Tools 36.0.0；部分 Capacitor Android 子模块仍按 Android Gradle Plugin 的默认值请求 35.0.0，因此镜像同时固定安装这两个明确版本。两者都是镜像的一部分，构建期间不会临时修改 Android SDK。
 
 ## 2. 安全原则
 

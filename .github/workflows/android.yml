@@ -17,6 +17,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  container:
+    name: Validate pinned Docker build environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build pinned Android toolchain image
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --build-arg BUILDER_UID="$(id -u)" \
+            --build-arg BUILDER_GID="$(id -g)" \
+            --file docker/android/Dockerfile \
+            --tag tarim-examdeck/android-builder:ci \
+            .
+
+      - name: Run tests and native Android build inside container
+        run: |
+          docker run --rm --init --platform linux/amd64 \
+            --volume "$PWD:/workspace" \
+            tarim-examdeck/android-builder:ci validate
+
   validate:
     name: Test and build Android debug APK
     runs-on: ubuntu-latest
@@ -109,6 +132,7 @@ jobs:
     name: Publish signed Android release
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
+      - container
       - validate
       - instrumented
     runs-on: ubuntu-latest

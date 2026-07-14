@@ -101,6 +101,15 @@ android/keystores/tarim-android-release.jks
 npm run android:pack
 ```
 
+也可以使用固定 Node、JDK 和 Android SDK 版本的 Docker 环境构建：
+
+```bash
+npm run android:docker:validate
+npm run android:docker
+```
+
+Docker 不包含签名文件，只在正式构建时只读挂载本机 keystore。完整配置、代理和故障排查见 [Android Docker 固化构建环境](docs/android-docker-build.md)。
+
 该命令固定执行：
 
 ```text
@@ -148,7 +157,7 @@ TARIM_ANDROID_KEY_PASSWORD
 
 应用使用 IndexedDB 保存本机学习记录。覆盖安装和升级时必须保留相同包名与签名。换手机或清理应用数据前，使用应用内“导出学习进度”生成备份；恢复时使用“导入学习进度”。
 
-完整每日复习规则见 [docs/daily-review-strategy.md](docs/daily-review-strategy.md)。Android 架构和验收清单见 [docs/android-version-architecture.md](docs/android-version-architecture.md)。
+完整每日复习规则见 [docs/daily-review-strategy.md](docs/daily-review-strategy.md)。Android 架构和验收清单见 [docs/android-version-architecture.md](docs/android-version-architecture.md)，Docker 固化环境见 [docs/android-docker-build.md](docs/android-docker-build.md)。
 
 ## 项目结构
 
@@ -158,6 +167,7 @@ examdeck/
 ├── public/              # 9 个内置题库、图片和静态资源
 ├── android/             # Capacitor Android 工程
 ├── scripts/             # Android 构建、版本和发布校验
+├── docker/android/      # 固定版本的 Android Docker 工具链
 ├── docs/                # Android 架构与复习规则
 ├── .github/workflows/   # Android CI / Release
 ├── package.json         # 唯一应用版本源

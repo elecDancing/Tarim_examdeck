@@ -15,7 +15,9 @@
     "check:import": "node scripts/check-import.mjs",
     "android:release-info": "node scripts/android-release-info.mjs",
     "android:verify": "node scripts/verify-android-release.mjs",
-    "android:pack": "bash scripts/build-android-app.sh"
+    "android:pack": "bash scripts/build-android-app.sh",
+    "android:docker": "bash scripts/build-android-docker.sh release",
+    "android:docker:validate": "bash scripts/build-android-docker.sh validate"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.0",

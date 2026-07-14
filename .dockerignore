@@ -1,0 +1,5 @@
+*
+!docker/
+!docker/android/
+!docker/android/Dockerfile
+!docker/android/entrypoint.sh

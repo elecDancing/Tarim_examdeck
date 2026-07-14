@@ -16,6 +16,7 @@ def packageVersionCode = versionParts[0] * 1000000 + versionParts[1] * 1000 + ve
 android {
     namespace = "com.tarim.examdeck"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildToolsVersion = rootProject.ext.androidBuildToolsVersion
     buildFeatures {
         buildConfig = true
     }

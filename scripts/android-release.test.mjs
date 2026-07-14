@@ -33,10 +33,14 @@ describe("Android release metadata", () => {
   it("pins the Docker Android toolchain and never copies signing material", () => {
     const dockerfile = readFileSync(new URL("../docker/android/Dockerfile", import.meta.url), "utf8");
     const dockerignore = readFileSync(new URL("../.dockerignore", import.meta.url), "utf8");
+    const variablesGradle = readFileSync(new URL("../android/variables.gradle", import.meta.url), "utf8");
+    const appGradle = readFileSync(new URL("../android/app/build.gradle", import.meta.url), "utf8");
     expect(dockerfile).toContain("21.0.7_6-jdk-jammy@sha256:");
     expect(dockerfile).toContain("ARG NODE_VERSION=22.17.0");
     expect(dockerfile).toContain("ARG ANDROID_PLATFORM_VERSION=36");
     expect(dockerfile).toContain("ARG ANDROID_BUILD_TOOLS_VERSION=36.0.0");
+    expect(variablesGradle).toContain("androidBuildToolsVersion = '36.0.0'");
+    expect(appGradle).toContain("buildToolsVersion = rootProject.ext.androidBuildToolsVersion");
     expect(dockerfile).not.toMatch(/COPY[^\n]*(keystore|\.jks|release\.properties)/i);
     expect(dockerignore).toContain("*");
     expect(dockerignore).not.toContain("!android/keystores");

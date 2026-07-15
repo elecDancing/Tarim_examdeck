@@ -2,16 +2,24 @@ import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const [inputArg, outputArg] = process.argv.slice(2);
+if (!inputArg || !outputArg) {
+  console.error("用法: node scripts/convert-safety-image-workbook.mjs <输入.xlsx> <输出.xlsx>");
+  process.exit(1);
+}
 
 const require = createRequire(import.meta.url);
 const XLSX = require("xlsx");
-
-const inputPath = "/Users/xuepengzhang/Documents/国赛测试/图片格式题库/安全题_图片格式_已校验_含图片.xlsx";
-const outputPath = "/Users/xuepengzhang/Documents/国赛测试/图片格式题库/安全题_ExamDeck导入格式_含图片列.xlsx";
-const imageDir = path.resolve("public/question-images/safety");
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const inputPath = path.resolve(process.cwd(), inputArg);
+const outputPath = path.resolve(process.cwd(), outputArg);
+const imageDir = path.join(projectRoot, "public/question-images/safety");
 const imageUrlPrefix = "/question-images/safety";
 
 fs.mkdirSync(imageDir, { recursive: true });
+fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
 const workbook = XLSX.readFile(inputPath);
 const sheetName = workbook.SheetNames.includes("题库") ? "题库" : workbook.SheetNames[0];
